@@ -125,6 +125,7 @@ list.addEventListener('click', async e=>{
 document.querySelectorAll('[data-open]').forEach(btn => btn.addEventListener('click',()=>{
   currentModule = btn.dataset.open;
   currentMinister = '';
+  setTimeout(updateModuleBulletinButton, 0);
   ministerFilters.dataset.tag = '';
   ministerFilters.querySelectorAll('.filter').forEach((b,i)=>b.classList.toggle('active',i===0));
   home.classList.remove('active');
@@ -189,32 +190,114 @@ document.querySelector('#copyBoletim').addEventListener('click',async()=>{
 
 loadConfig();
 
-const generateModuleBulletinBtn=document.getElementById('generateModuleBulletinBtn');
-const moduleBulletinModal=document.getElementById('moduleBulletinModal');
-const moduleBulletinText=document.getElementById('moduleBulletinText');
-const moduleBulletinTitle=document.getElementById('moduleBulletinTitle');
-const moduleBulletinGenerated=document.getElementById('moduleBulletinGenerated');
-function updateModuleBulletinButton(){if(generateModuleBulletinBtn)generateModuleBulletinBtn.hidden=!(state.module==='stf'||state.module==='saude');}
-function bulletinDate(d){let w=new Intl.DateTimeFormat('pt-BR',{weekday:'long'}).format(d);let x=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'long',year:'numeric'}).format(d);return w.charAt(0).toUpperCase()+w.slice(1)+', '+x;}
-async function generateModuleBulletin(){
- const module=state.module;if(!(module==='stf'||module==='saude'))return;
- generateModuleBulletinBtn.disabled=true;let old=generateModuleBulletinBtn.textContent;generateModuleBulletinBtn.textContent='Gerando...';
- try{
-  const p=new URLSearchParams({module}); if(state.q)p.set('q',state.q); if(state.minister)p.set('minister',state.minister); if(state.tag)p.set('tag',state.tag);
-  const r=await fetch('/api/news?'+p.toString()); if(!r.ok)throw new Error('Não foi possível carregar as notícias.');
-  const items=await r.json(), now=new Date(), label=module==='saude'?'SAÚDE':'STF';
-  moduleBulletinTitle.textContent='Boletim '+label; moduleBulletinGenerated.textContent='Gerado às '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  let lines=['*BOLETIM '+label+'*','_'+bulletinDate(now)+'_','-'];
-  if(!items.length)lines.push('Nenhuma notícia disponível com os filtros atuais.');
-  items.forEach(n=>{lines.push('*'+n.source+'* - '+n.title);lines.push(n.url);lines.push('-');});
-  moduleBulletinText.value=lines.join('\n');moduleBulletinModal.hidden=false;
- }catch(e){alert(e.message||'Não foi possível gerar o boletim.');}
- finally{generateModuleBulletinBtn.disabled=false;generateModuleBulletinBtn.textContent=old;}
+
+const generateModuleBulletinBtn = document.getElementById('generateModuleBulletinBtn');
+const moduleBulletinModal = document.getElementById('moduleBulletinModal');
+const moduleBulletinText = document.getElementById('moduleBulletinText');
+const moduleBulletinTitle = document.getElementById('moduleBulletinTitle');
+const moduleBulletinGenerated = document.getElementById('moduleBulletinGenerated');
+
+function updateModuleBulletinButton(){
+  if(!generateModuleBulletinBtn) return;
+  generateModuleBulletinBtn.hidden = !(currentModule === 'stf' || currentModule === 'saude');
 }
-generateModuleBulletinBtn?.addEventListener('click',generateModuleBulletin);
-function closeMB(){moduleBulletinModal.hidden=true}
-document.getElementById('closeModuleBulletin')?.addEventListener('click',closeMB);
-document.getElementById('closeModuleBulletinBottom')?.addEventListener('click',closeMB);
-moduleBulletinModal?.addEventListener('click',e=>{if(e.target===moduleBulletinModal)closeMB()});
-document.getElementById('copyModuleBulletin')?.addEventListener('click',async e=>{await navigator.clipboard.writeText(moduleBulletinText.value);let o=e.target.textContent;e.target.textContent='Copiado!';setTimeout(()=>e.target.textContent=o,1200)});
+
+function bulletinDate(d){
+  const weekday = new Intl.DateTimeFormat('pt-BR',{
+    weekday:'long',
+    timeZone:'America/Sao_Paulo'
+  }).format(d);
+
+  const date = new Intl.DateTimeFormat('pt-BR',{
+    day:'2-digit',
+    month:'long',
+    year:'numeric',
+    timeZone:'America/Sao_Paulo'
+  }).format(d);
+
+  return `${weekday.charAt(0).toUpperCase()+weekday.slice(1)}, ${date}`;
+}
+
+async function generateModuleBulletin(){
+  const module = currentModule;
+  if(!(module === 'stf' || module === 'saude')) return;
+
+  generateModuleBulletinBtn.disabled = true;
+  const oldLabel = generateModuleBulletinBtn.textContent;
+  generateModuleBulletinBtn.textContent = 'Gerando...';
+
+  try{
+    const params = new URLSearchParams({module});
+
+    const q = search.value.trim();
+    const minister = currentMinister;
+    const tag = ministerFilters.dataset.tag || '';
+
+    if(q) params.set('q', q);
+    if(minister) params.set('minister', minister);
+    if(tag) params.set('tag', tag);
+
+    const response = await fetch(`/api/news?${params.toString()}`);
+    if(!response.ok) throw new Error('Não foi possível carregar as notícias.');
+
+    const items = await response.json();
+    const now = new Date();
+    const label = module === 'saude' ? 'SAÚDE' : 'STF';
+
+    moduleBulletinTitle.textContent = `Boletim ${label}`;
+    moduleBulletinGenerated.textContent =
+      `Gerado às ${new Intl.DateTimeFormat('pt-BR',{
+        hour:'2-digit',
+        minute:'2-digit',
+        timeZone:'America/Sao_Paulo'
+      }).format(now)}`;
+
+    const lines = [
+      `*BOLETIM ${label}*`,
+      `_${bulletinDate(now)}_`,
+      '-'
+    ];
+
+    if(!Array.isArray(items) || !items.length){
+      lines.push('Nenhuma notícia disponível com os filtros atuais.');
+    }else{
+      items.forEach(n=>{
+        lines.push(`*${n.source}* - ${n.title}`);
+        lines.push(n.url);
+        lines.push('-');
+      });
+    }
+
+    moduleBulletinText.value = lines.join('\n');
+    moduleBulletinModal.hidden = false;
+
+  }catch(err){
+    alert(err.message || 'Não foi possível gerar o boletim.');
+  }finally{
+    generateModuleBulletinBtn.disabled = false;
+    generateModuleBulletinBtn.textContent = oldLabel;
+  }
+}
+
+generateModuleBulletinBtn?.addEventListener('click', generateModuleBulletin);
+
+function closeModuleBulletinModal(){
+  if(moduleBulletinModal) moduleBulletinModal.hidden = true;
+}
+
+document.getElementById('closeModuleBulletin')?.addEventListener('click', closeModuleBulletinModal);
+document.getElementById('closeModuleBulletinBottom')?.addEventListener('click', closeModuleBulletinModal);
+
+moduleBulletinModal?.addEventListener('click', e=>{
+  if(e.target === moduleBulletinModal) closeModuleBulletinModal();
+});
+
+document.getElementById('copyModuleBulletin')?.addEventListener('click', async e=>{
+  if(!moduleBulletinText.value) return;
+  await navigator.clipboard.writeText(moduleBulletinText.value);
+  const old = e.target.textContent;
+  e.target.textContent = 'Copiado!';
+  setTimeout(()=>e.target.textContent = old, 1200);
+});
+
 updateModuleBulletinButton();
