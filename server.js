@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.4.2)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.4.3)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -163,7 +163,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.4.2)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.4.3)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -274,7 +274,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.4.2)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.4.3)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -395,7 +395,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.4.2',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.4.3',now:new Date().toISOString(),modules:diagnostics});
 });
 
 function formatDate(now) {
@@ -468,11 +468,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.4.2',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.4.3',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.4.2 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.4.3 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
