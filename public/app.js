@@ -244,8 +244,8 @@ async function generateModuleBulletin(){
     const now = new Date();
     const label = module === 'saude' ? 'SAÚDE' : 'STF';
 
-    moduleBulletinTitle.textContent = `Boletim ${label}`;
-    moduleBulletinGenerated.textContent =
+    if(moduleBulletinTitle) moduleBulletinTitle.textContent = `Boletim ${label}`;
+    if(moduleBulletinGenerated) moduleBulletinGenerated.textContent =
       `Gerado às ${new Intl.DateTimeFormat('pt-BR',{
         hour:'2-digit',
         minute:'2-digit',
@@ -268,6 +268,9 @@ async function generateModuleBulletin(){
       });
     }
 
+    if(!moduleBulletinText || !moduleBulletinModal){
+      throw new Error('A interface do boletim ainda não foi carregada. Atualize também o index.html.');
+    }
     moduleBulletinText.value = lines.join('\n');
     moduleBulletinModal.hidden = false;
 
