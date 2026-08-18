@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Central de Notícias</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">MONITORAMENTO E CLIPPING</p>
+      <h1>Central de Notícias</h1>
+      <p class="subtitle">STF, Judiciário e Saúde em um só painel</p>
+    </div>
+    <div class="status"><span class="dot"></span><span>Atualização automática</span></div>
+  </header>
+
+  <main class="container">
+    <section id="home" class="view active">
+      <div class="cards">
+        <button class="module-card" data-open="stf">
+          <div class="icon">⚖️</div><h2>STF</h2>
+          <p>STF • CNJ • Ministros</p><span>Tempo real</span>
+        </button>
+        <button class="module-card" data-open="judiciario">
+          <div class="icon">📰</div><h2>Boletins</h2>
+          <p>Ajufe • CNJ • STF • STJ</p><span>08h • 13h • 18h</span>
+        </button>
+        <button class="module-card" data-open="saude">
+          <div class="icon">🏥</div><h2>Saúde</h2>
+          <p>SUS • Anvisa • OMS • Planos</p><span>Tempo real</span>
+        </button>
+      </div>
+
+      <section class="sources">
+        <h3>Fontes monitoradas</h3>
+        <p>G1, Globo.com, O Globo, Estadão, Valor Econômico, Correio Braziliense, Folha de S.Paulo, CNN Brasil, Veja, IstoÉ, Metrópoles, UOL, JOTA, BBC News Brasil, ConJur, Migalhas, R7, DW Brasil, Poder360, Agência Brasil, O Tempo, ICL Notícias e Revista Oeste.</p>
+      </section>
+    </section>
+
+    <section id="panel" class="view">
+      <div class="toolbar">
+        <button id="back" class="ghost">← Painel principal</button>
+        <div class="last-update">Última atualização: <strong id="lastUpdate">—</strong></div>
+      </div>
+
+      <div class="panel-head">
+        <div><p class="eyebrow" id="panelEyebrow"></p><h2 id="panelTitle"></h2></div>
+        <input id="search" placeholder="Buscar notícia, veículo ou assunto..." />
+      </div>
+
+      <div id="boletimControls" class="boletim-controls hidden">
+        <button data-edition="1">Gerar 1ª edição • 08h</button>
+        <button data-edition="2">Gerar 2ª edição • 13h</button>
+        <button data-edition="3">Gerar 3ª edição • 18h</button>
+      </div>
+
+      <div id="newsList" class="news-list"></div>
+    </section>
+  </main>
+
+  <dialog id="boletimDialog">
+    <div class="dialog-head"><h3>Boletim pronto para WhatsApp</h3><button id="closeDialog">✕</button></div>
+    <textarea id="boletimText" rows="22"></textarea>
+    <div class="dialog-actions"><button id="copyBoletim">Copiar boletim</button></div>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>
