@@ -159,6 +159,31 @@ function moduleMatch(module, text='') {
   return /saude|sus|anvisa|\boms\b|organizacao mundial da saude|ministerio da saude|plano de saude|saude suplementar|rede hospitalar|hospital|rede d.?or|instituto coalizao saude|instituto consenso/.test(n);
 }
 
+
+async function resolveOriginalUrl(url) {
+  if (!url || !url.includes('news.google.com')) return url;
+  try {
+    const response = await fetch(url, {
+      redirect: 'follow',
+      headers: {'User-Agent':'Mozilla/5.0'}
+    });
+    // In many Google News RSS links, following the redirect reaches the publisher.
+    if (response.url && !response.url.includes('news.google.com')) return response.url;
+  } catch (err) {
+    console.warn('Não foi possível resolver URL original:', err.message);
+  }
+  return url;
+}
+
+async function resolveUrls(items, limit=30) {
+  const slice = items.slice(0, limit);
+  const resolved = await Promise.all(slice.map(async n => ({
+    ...n,
+    url: await resolveOriginalUrl(n.url)
+  })));
+  return resolved.concat(items.slice(limit));
+}
+
 function feedUrl(query) {
   const params = new URLSearchParams({
     q: query,
@@ -289,7 +314,7 @@ app.post('/api/refresh', async (req, res) => {
 
 app.get('/api/status', (_, res) => {
   res.json({
-    version:'2.1',
+    version:'2.2',
     now:new Date().toISOString(),
     modules:diagnostics
   });
@@ -302,7 +327,9 @@ function formatDate(now) {
 }
 
 function newsLine(n) {
-  return `*${n.source}* - ${n.title}\n${n.url}\n\n-`;
+  return `*${n.source}* - ${n.title}
+${n.url}
+-`;
 }
 
 function selectDiverse(items, max, used=new Set()) {
@@ -321,27 +348,28 @@ app.get('/api/boletim/:edition', async (req, res) => {
   const edition = Number(req.params.edition);
   if (![1,2,3].includes(edition)) return res.status(400).json({error:'Edição inválida'});
 
-  const items = await fetchModule('judiciario', false);
+  const rawItems = await fetchModule('judiciario', false);
+  const items = await resolveUrls(rawItems, 40);
   const now = new Date();
   const used = new Set();
   const cutoffHours = edition === 1 ? 24 : 8;
   const recent = items.filter(n => now - new Date(n.publishedAt) <= cutoffHours*60*60*1000);
   const pool = recent.length >= 5 ? recent : items;
 
-  let text = `*BOLETIM - ${edition}ª EDIÇÃO*\n\n_${formatDate(now)}_\n\n-\n`;
+  let text = `*BOLETIM - ${edition}ª EDIÇÃO*\n_${formatDate(now)}_\n-`;
 
   if (edition === 1) {
     const hot = selectDiverse(pool, 3, used);
-    if (hot.length) text += `\n*ASSUNTO DO MOMENTO*\n\n${hot.map(newsLine).join('\n\n')}\n`;
+    if (hot.length) text += `\n*ASSUNTO DO MOMENTO*\n-\n${hot.map(newsLine).join('\n')}`;
 
     const tres = selectDiverse(pool.filter(n => n.tags.includes('STF') || n.tags.includes('CNJ') || n.tags.some(t => MINISTERS.some(m => m.name === t))), 5, used);
-    if (tres.length) text += `\n\n*TRÊS PODERES*\n\n-\n\n${tres.map(newsLine).join('\n\n')}`;
+    if (tres.length) text += `\n*TRÊS PODERES*\n-\n${tres.map(newsLine).join('\n')}`;
 
     const jud = selectDiverse(pool.filter(n => n.tags.includes('STJ') || n.tags.includes('Ajufe') || n.tags.includes('CNJ')), 5, used);
-    if (jud.length) text += `\n\n*ADVOCACIA E JUDICIÁRIO*\n\n-\n\n${jud.map(newsLine).join('\n\n')}`;
+    if (jud.length) text += `\n*ADVOCACIA E JUDICIÁRIO*\n-\n${jud.map(newsLine).join('\n')}`;
   } else {
-    text += `\n*AJUFE, CNJ, STF, MINISTROS DO STF E STJ*\n\n-\n\n`;
-    text += selectDiverse(pool, 12, used).map(newsLine).join('\n\n');
+    text += `\n*AJUFE, CNJ, STF, MINISTROS DO STF E STJ*\n-\n`;
+    text += selectDiverse(pool, 12, used).map(newsLine).join('\n');
   }
 
   res.json({edition, text, generatedAt:now.toISOString()});
@@ -356,11 +384,11 @@ app.get('/api/clipping/ministers', async (_, res) => {
   })));
 });
 
-app.get('/health', (_, res) => res.json({ok:true,version:'2.1',now:new Date().toISOString()}));
+app.get('/health', (_, res) => res.json({ok:true,version:'2.2',now:new Date().toISOString()}));
 app.get('*', (_, res) => res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT, () => {
-  console.log(`Central de Notícias v2.1 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v2.2 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m => fetchModule(m, true));
   setInterval(() => ['stf','judiciario','saude'].forEach(m => fetchModule(m, true)), CACHE_TTL_MS);
 });
