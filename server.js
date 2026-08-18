@@ -90,6 +90,12 @@ const CACHE_TTL_MS = 3 * 60 * 1000;
 let cache = { stf: [], judiciario: [], saude: [] };
 let cacheAt = { stf: 0, judiciario: 0, saude: 0 };
 let refreshing = { stf: null, judiciario: null, saude: null };
+const originalUrlCache = new Map();
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 let diagnostics = {
   stf:{ok:false,count:0,error:null,lastAttempt:null},
   judiciario:{ok:false,count:0,error:null,lastAttempt:null},
@@ -164,41 +170,75 @@ function moduleMatch(module, text='') {
 
 
 async function resolveOriginalUrl(url) {
-  if (!url || !url.includes('news.google.com')) return url;
+  if (!url) return null;
+  if (!url.includes('news.google.com')) return url;
+
+  if (originalUrlCache.has(url)) return originalUrlCache.get(url);
+
+  let resolved = null;
+
+  // 1) Decoder principal
   try {
     const result = await decoder.decode(url);
-    if (result && result.status && result.decoded_url) {
-      return result.decoded_url;
+    if (result && result.status && result.decoded_url && !result.decoded_url.includes('news.google.com')) {
+      resolved = result.decoded_url;
     }
-    console.warn('Decoder não resolveu URL:', result?.message || url);
   } catch (err) {
-    console.warn('Erro ao decodificar Google News:', err.message);
+    console.warn('Decoder principal falhou:', err.message);
   }
-  return url;
+
+  // 2) Segunda tentativa após pequena pausa
+  if (!resolved) {
+    await sleep(350);
+    try {
+      const result = await decoder.decode(url);
+      if (result && result.status && result.decoded_url && !result.decoded_url.includes('news.google.com')) {
+        resolved = result.decoded_url;
+      }
+    } catch (err) {
+      console.warn('Segunda tentativa de decoder falhou:', err.message);
+    }
+  }
+
+  originalUrlCache.set(url, resolved);
+  return resolved;
 }
 
-async function resolveUrls(items, limit=40) {
+async function resolveUrlsOriginalOnly(items, limit=70) {
   const head = items.slice(0, limit);
-  const googleUrls = head.map(n => n.url);
+  const output = [];
 
-  try {
-    const results = await decoder.decodeBatch(googleUrls);
-    const resolved = head.map((n, i) => {
-      const r = results && results[i];
-      return {
-        ...n,
-        url: r && r.status && r.decoded_url ? r.decoded_url : n.url
-      };
-    });
-    return resolved.concat(items.slice(limit));
-  } catch (err) {
-    console.warn('Falha no decodeBatch; tentando individualmente:', err.message);
-    const resolved = [];
-    for (const n of head) {
-      resolved.push({...n, url: await resolveOriginalUrl(n.url)});
+  // Lotes pequenos para reduzir bloqueios/rate-limit do Google.
+  for (let i = 0; i < head.length; i += 5) {
+    const batch = head.slice(i, i + 5);
+
+    let batchResults = null;
+    try {
+      batchResults = await decoder.decodeBatch(batch.map(n => n.url));
+    } catch (err) {
+      console.warn('decodeBatch falhou:', err.message);
     }
-    return resolved.concat(items.slice(limit));
+
+    for (let j = 0; j < batch.length; j++) {
+      const n = batch[j];
+      const r = batchResults && batchResults[j];
+      let original = r && r.status && r.decoded_url && !r.decoded_url.includes('news.google.com')
+        ? r.decoded_url
+        : null;
+
+      if (!original) original = await resolveOriginalUrl(n.url);
+
+      // REGRA: link do Google News nunca entra no painel/boletim.
+      if (original && !original.includes('news.google.com')) {
+        originalUrlCache.set(n.url, original);
+        output.push({...n, url: original});
+      }
+    }
+
+    if (i + 5 < head.length) await sleep(250);
   }
+
+  return output;
 }
 
 function feedUrl(query) {
@@ -274,15 +314,20 @@ async function fetchModule(module, force=false) {
       return true;
     }).sort((a,b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
-    cache[module] = unique;
+    // A partir daqui, só armazenamos itens cujo link original do veículo foi resolvido.
+    const originalOnly = await resolveUrlsOriginalOnly(unique, 70);
+
+    cache[module] = originalOnly;
     cacheAt[module] = Date.now();
     diagnostics[module] = {
       ok:true,
-      count:unique.length,
+      count:originalOnly.length,
+      discovered:unique.length,
+      discardedGoogleLinks:Math.max(0, unique.length - originalOnly.length),
       error:failures.length ? failures.map(f => f.reason?.message || String(f.reason)).join(' | ') : null,
       lastAttempt:new Date().toISOString()
     };
-    return unique;
+    return originalOnly;
   })().catch(err => {
     console.error(`Erro ao atualizar ${module}:`, err);
     diagnostics[module] = {
@@ -320,7 +365,9 @@ app.get('/api/config', (_, res) => {
 app.get('/api/news', async (req, res) => {
   const module = ['stf','judiciario','saude'].includes(req.query.module) ? req.query.module : 'stf';
   const items = await fetchModule(module, false);
-  res.json(filterNews(items, req.query.q, req.query.minister, req.query.tag));
+  const filtered = filterNews(items, req.query.q, req.query.minister, req.query.tag)
+    .filter(n => n.url && !n.url.includes('news.google.com'));
+  res.json(filtered);
 });
 
 app.post('/api/refresh', async (req, res) => {
@@ -331,7 +378,7 @@ app.post('/api/refresh', async (req, res) => {
 
 app.get('/api/status', (_, res) => {
   res.json({
-    version:'2.3',
+    version:'2.5',
     now:new Date().toISOString(),
     modules:diagnostics
   });
@@ -365,8 +412,7 @@ app.get('/api/boletim/:edition', async (req, res) => {
   const edition = Number(req.params.edition);
   if (![1,2,3].includes(edition)) return res.status(400).json({error:'Edição inválida'});
 
-  const rawItems = await fetchModule('judiciario', false);
-  const items = await resolveUrls(rawItems, 40);
+  const items = await fetchModule('judiciario', false);
   const now = new Date();
   const used = new Set();
   const cutoffHours = edition === 1 ? 24 : 8;
@@ -401,11 +447,11 @@ app.get('/api/clipping/ministers', async (_, res) => {
   })));
 });
 
-app.get('/health', (_, res) => res.json({ok:true,version:'2.3',now:new Date().toISOString()}));
+app.get('/health', (_, res) => res.json({ok:true,version:'2.5',now:new Date().toISOString()}));
 app.get('*', (_, res) => res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT, () => {
-  console.log(`Central de Notícias v2.3 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v2.5 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m => fetchModule(m, true));
   setInterval(() => ['stf','judiciario','saude'].forEach(m => fetchModule(m, true)), CACHE_TTL_MS);
 });

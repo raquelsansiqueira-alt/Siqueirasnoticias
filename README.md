@@ -1,4 +1,4 @@
-# Central de Notícias v2.1
+# Central de Notícias v2.3
 
 Painel com três módulos:
 
@@ -47,3 +47,7 @@ Observação: alguns links do Google News podem abrir primeiro uma página de re
 ## Diagnóstico
 
 Abra `/api/status` no fim da URL do Render para conferir se os três módulos estão recebendo notícias.
+
+
+### v2.3
+Os links do Google News são decodificados para a URL original do veículo com `google-news-url-decoder` antes da geração dos boletins.

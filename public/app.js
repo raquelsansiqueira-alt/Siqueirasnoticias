@@ -31,14 +31,6 @@ function brDate(iso){
   } catch { return iso || '—'; }
 }
 
-async function getOriginalUrl(url){
-  if(!url.includes('news.google.com')) return url;
-  try{
-    const r = await fetch(`/api/link?url=${encodeURIComponent(url)}`);
-    const d = await r.json();
-    return d.url || url;
-  }catch{ return url; }
-}
 
 async function loadConfig(){
   const res = await fetch('/api/config');
@@ -110,7 +102,11 @@ list.addEventListener('click', async e=>{
 
   btn.disabled = true;
   try{
-    const url = await getOriginalUrl(n.url);
+    const url = n.url;
+    if(!url || url.includes('news.google.com')){
+      alert('Esta matéria não possui link original disponível e foi bloqueada.');
+      return;
+    }
     if(btn.dataset.action === 'read'){
       window.open(url,'_blank','noopener');
     }else if(btn.dataset.action === 'copy'){
