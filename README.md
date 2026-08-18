@@ -1,4 +1,4 @@
-# Central de Notícias v2
+# Central de Notícias v2.1
 
 Painel com três módulos:
 
@@ -42,3 +42,8 @@ Observação: alguns links do Google News podem abrir primeiro uma página de re
 - Flávio Dino
 - Cristiano Zanin
 - Gilmar Mendes
+
+
+## Diagnóstico
+
+Abra `/api/status` no fim da URL do Render para conferir se os três módulos estão recebendo notícias.
