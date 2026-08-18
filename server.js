@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.5)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.6)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -163,7 +163,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.5)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.6)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -274,7 +274,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.5)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.6)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -395,22 +395,25 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.5',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.6',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
 const FIRST_EDITION_QUERIES = {
   momento: [
-    'Brasil',
-    'Mundo',
-    '"notícias de hoje" Brasil',
-    'política Brasil',
-    'economia Brasil'
+    '"política brasileira" OR política Brasil',
+    'Lula OR Planalto OR Presidência OR "governo federal"',
+    'Congresso OR Senado OR Câmara OR eleições',
+    'STF OR "Supremo Tribunal Federal" OR TSE',
+    'crise política OR investigação OR "três poderes"'
   ],
   tresPoderes: [
-    'STF OR "Supremo Tribunal Federal" OR Planalto OR Presidência',
-    'Lula OR "governo federal" OR ministro',
-    'Senado OR Câmara OR Congresso OR "Congresso Nacional"'
+    'STF OR "Supremo Tribunal Federal"',
+    '"Alexandre de Moraes" OR "Edson Fachin" OR "Cármen Lúcia"',
+    '"Dias Toffoli" OR "Luiz Fux" OR "Gilmar Mendes"',
+    '"Flávio Dino" OR "Cristiano Zanin" OR "Nunes Marques" OR "André Mendonça"',
+    'STF OR Supremo OR ministro OR ministros',
+    'Planalto OR Presidência OR Lula OR Congresso OR Senado OR Câmara'
   ],
   judiciario: [
     'STJ OR "Superior Tribunal de Justiça"',
@@ -484,6 +487,57 @@ function headlineWords(text='') {
       'noticia','noticias','governo','afirma','segundo','contra','pode',
       'para','pela','pelos','pelas','mais','como','esta','esse','essa'
     ].includes(w));
+}
+
+
+const POLITICAL_TERMS = [
+  'stf','supremo','moraes','fachin','carmen lucia','toffoli','fux','nunes marques',
+  'andre mendonca','flavio dino','zanin','gilmar mendes','lula','planalto',
+  'presidencia','governo federal','congresso','senado','camara','deputado',
+  'deputados','senador','senadores','eleicao','eleicoes','tse','politica',
+  'partido','pt','pl','pgr','procuradoria','bolsonaro','ministerio','ministro',
+  'ministra','impeachment','constituicao','emenda','veto','sancao','investigacao'
+];
+
+const EXCLUDED_MOMENT_TERMS = [
+  'futebol','campeonato','brasileirao','libertadores','copa do brasil','gol ',
+  'jogador','tecnico','flamengo','corinthians','palmeiras','vasco','botafogo',
+  'sao paulo fc','gremio','internacional','cruzeiro','atletico mineiro',
+  'celebridade','famoso','famosa','atriz','ator','cantor','cantora','influencer',
+  'reality','big brother','bbb','novela','show','cinema','serie','streaming',
+  'casamento','namoro','separacao','fofoca'
+];
+
+const STF_PRIORITY_TERMS = [
+  'stf','supremo','supremo tribunal federal','moraes','fachin','carmen lucia',
+  'toffoli','fux','nunes marques','andre mendonca','flavio dino','zanin','gilmar mendes'
+];
+
+function containsAny(text, terms) {
+  const value = normalize(text);
+  return terms.some(term => value.includes(normalize(term)));
+}
+
+function isPoliticalMoment(item) {
+  const text = `${item.title} ${item.summary || ''}`;
+  if (containsAny(text, EXCLUDED_MOMENT_TERMS)) return false;
+  return containsAny(text, POLITICAL_TERMS);
+}
+
+function stfPriorityScore(item) {
+  const text = `${item.title} ${item.summary || ''}`;
+  let score = 0;
+  for (const term of STF_PRIORITY_TERMS) {
+    if (normalize(text).includes(normalize(term))) score += 20;
+  }
+  const ageHours = Math.max(0, (Date.now() - new Date(item.publishedAt).getTime()) / 3600000);
+  score += Math.max(0, 24 - ageHours);
+  return score;
+}
+
+function selectTresPoderes(items, max, used) {
+  const sorted = [...items].sort((a,b) => stfPriorityScore(b) - stfPriorityScore(a));
+  return selectEditorial(sorted, max, used);
 }
 
 function momentScore(item, allItems) {
@@ -582,7 +636,7 @@ app.get('/api/boletim/:edition',async(req,res)=>{
       fetchEditorialQueries(FIRST_EDITION_QUERIES.economia)
     ]);
 
-    const momento=recentEnough(momentoRaw,24);
+    const momento=recentEnough(momentoRaw,24).filter(isPoliticalMoment);
     const tres=recentEnough(tresRaw,24);
     const jud=recentEnough(judRaw,24);
     const economia=recentEnough(economiaRaw,24);
@@ -592,7 +646,7 @@ app.get('/api/boletim/:edition',async(req,res)=>{
       text+=`\n*Assunto do Momento:*\n${hot.map(newsLine).join('\n')}`;
     }
 
-    const tresSel=selectEditorial(tres,5,used);
+    const tresSel=selectTresPoderes(tres,5,used);
     if (tresSel.length) {
       text+=`\n*TRÊS PODERES*\n-\n${tresSel.map(newsLine).join('\n')}`;
     }
@@ -641,11 +695,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.5',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.6',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.5 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.6 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
