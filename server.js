@@ -1,10 +1,13 @@
 const express = require('express');
 const path = require('path');
 const Parser = require('rss-parser');
+const { GoogleDecoder } = require('google-news-url-decoder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TZ = 'America/Sao_Paulo';
+
+const decoder = new GoogleDecoder();
 
 const parser = new Parser({
   timeout: 20000,
@@ -163,25 +166,39 @@ function moduleMatch(module, text='') {
 async function resolveOriginalUrl(url) {
   if (!url || !url.includes('news.google.com')) return url;
   try {
-    const response = await fetch(url, {
-      redirect: 'follow',
-      headers: {'User-Agent':'Mozilla/5.0'}
-    });
-    // In many Google News RSS links, following the redirect reaches the publisher.
-    if (response.url && !response.url.includes('news.google.com')) return response.url;
+    const result = await decoder.decode(url);
+    if (result && result.status && result.decoded_url) {
+      return result.decoded_url;
+    }
+    console.warn('Decoder não resolveu URL:', result?.message || url);
   } catch (err) {
-    console.warn('Não foi possível resolver URL original:', err.message);
+    console.warn('Erro ao decodificar Google News:', err.message);
   }
   return url;
 }
 
-async function resolveUrls(items, limit=30) {
-  const slice = items.slice(0, limit);
-  const resolved = await Promise.all(slice.map(async n => ({
-    ...n,
-    url: await resolveOriginalUrl(n.url)
-  })));
-  return resolved.concat(items.slice(limit));
+async function resolveUrls(items, limit=40) {
+  const head = items.slice(0, limit);
+  const googleUrls = head.map(n => n.url);
+
+  try {
+    const results = await decoder.decodeBatch(googleUrls);
+    const resolved = head.map((n, i) => {
+      const r = results && results[i];
+      return {
+        ...n,
+        url: r && r.status && r.decoded_url ? r.decoded_url : n.url
+      };
+    });
+    return resolved.concat(items.slice(limit));
+  } catch (err) {
+    console.warn('Falha no decodeBatch; tentando individualmente:', err.message);
+    const resolved = [];
+    for (const n of head) {
+      resolved.push({...n, url: await resolveOriginalUrl(n.url)});
+    }
+    return resolved.concat(items.slice(limit));
+  }
 }
 
 function feedUrl(query) {
@@ -314,7 +331,7 @@ app.post('/api/refresh', async (req, res) => {
 
 app.get('/api/status', (_, res) => {
   res.json({
-    version:'2.2',
+    version:'2.3',
     now:new Date().toISOString(),
     modules:diagnostics
   });
@@ -384,11 +401,11 @@ app.get('/api/clipping/ministers', async (_, res) => {
   })));
 });
 
-app.get('/health', (_, res) => res.json({ok:true,version:'2.2',now:new Date().toISOString()}));
+app.get('/health', (_, res) => res.json({ok:true,version:'2.3',now:new Date().toISOString()}));
 app.get('*', (_, res) => res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT, () => {
-  console.log(`Central de Notícias v2.2 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v2.3 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m => fetchModule(m, true));
   setInterval(() => ['stf','judiciario','saude'].forEach(m => fetchModule(m, true)), CACHE_TTL_MS);
 });
