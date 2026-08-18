@@ -1,26 +1,44 @@
-# Central de Notícias
+# Central de Notícias v2
 
-Novo painel independente para monitoramento e clipping.
+Painel com três módulos:
 
-## Módulos
+1. STF / CNJ / Ministros — atualização automática.
+2. Boletins do Judiciário — 08h, 13h e 18h.
+3. Saúde — SUS, Anvisa, OMS, planos, hospitais, Rede D'Or etc.
 
-1. **STF** — STF, CNJ e ministros, com atualização automática, data/hora, leitura, cópia e WhatsApp.
-2. **Boletins** — Ajufe, CNJ, STF, ministros e STJ. Botões preparados para 1ª, 2ª e 3ª edições (08h, 13h e 18h).
-3. **Saúde** — saúde, planos de saúde, OMS, rede hospitalar, Ministério da Saúde, SUS, Anvisa e Rede D'Or.
+## Como atualizar o GitHub
 
-## Fontes previstas
+Substitua os arquivos antigos pelos arquivos desta pasta, mantendo:
+- `package.json`
+- `server.js`
+- pasta `public/`
 
-G1, Globo.com, O Globo, Estadão, Valor Econômico, Correio Braziliense, Folha de S.Paulo, CNN Brasil, Veja, IstoÉ, Metrópoles, UOL, JOTA, BBC News Brasil, ConJur, Migalhas, R7, DW Brasil, Poder360, Agência Brasil, O Tempo, ICL Notícias e Revista Oeste.
+Não envie o ZIP para dentro do repositório. Descompacte primeiro.
 
-## Rodar no computador
+## Render
 
-```bash
-npm install
-npm start
-```
+Build Command:
+`npm install`
 
-Abra `http://localhost:3000`.
+Start Command:
+`node server.js`
 
-## Importante
+## Como a coleta funciona
 
-Esta versão entrega o **novo painel e a infraestrutura inicial**. Os dados em `data/news.json` são demonstrativos. Para buscar notícias reais automaticamente, conecte coletores RSS/APIs/scrapers no servidor e grave os resultados nesse formato.
+A aplicação consulta o Google News RSS, filtra pelos veículos cadastrados e pelos assuntos dos três módulos.
+O servidor mantém cache por 3 minutos e o navegador atualiza a lista a cada 60 segundos.
+
+Observação: alguns links do Google News podem abrir primeiro uma página de redirecionamento do Google. O painel tenta resolver o link original antes de abrir/copiar/compartilhar.
+
+## Ministros monitorados
+
+- Edson Fachin
+- Cármen Lúcia
+- Dias Toffoli
+- Alexandre de Moraes
+- Luiz Fux
+- Nunes Marques
+- André Mendonça
+- Flávio Dino
+- Cristiano Zanin
+- Gilmar Mendes

@@ -21,28 +21,31 @@
       <div class="cards">
         <button class="module-card" data-open="stf">
           <div class="icon">⚖️</div><h2>STF</h2>
-          <p>STF • CNJ • Ministros</p><span>Tempo real</span>
+          <p>STF • CNJ • Ministros</p><span>Atualização contínua</span>
         </button>
         <button class="module-card" data-open="judiciario">
           <div class="icon">📰</div><h2>Boletins</h2>
-          <p>Ajufe • CNJ • STF • STJ</p><span>08h • 13h • 18h</span>
+          <p>Ajufe • CNJ • STF • Ministros • STJ</p><span>08h • 13h • 18h</span>
         </button>
         <button class="module-card" data-open="saude">
           <div class="icon">🏥</div><h2>Saúde</h2>
-          <p>SUS • Anvisa • OMS • Planos</p><span>Tempo real</span>
+          <p>SUS • Anvisa • OMS • Planos • Hospitais</p><span>Atualização contínua</span>
         </button>
       </div>
 
       <section class="sources">
         <h3>Fontes monitoradas</h3>
-        <p>G1, Globo.com, O Globo, Estadão, Valor Econômico, Correio Braziliense, Folha de S.Paulo, CNN Brasil, Veja, IstoÉ, Metrópoles, UOL, JOTA, BBC News Brasil, ConJur, Migalhas, R7, DW Brasil, Poder360, Agência Brasil, O Tempo, ICL Notícias e Revista Oeste.</p>
+        <p id="sourcesText">Carregando fontes...</p>
       </section>
     </section>
 
     <section id="panel" class="view">
       <div class="toolbar">
         <button id="back" class="ghost">← Painel principal</button>
-        <div class="last-update">Última atualização: <strong id="lastUpdate">—</strong></div>
+        <div class="toolbar-right">
+          <button id="refreshNow" class="outline">Atualizar agora</button>
+          <div class="last-update">Última atualização: <strong id="lastUpdate">—</strong></div>
+        </div>
       </div>
 
       <div class="panel-head">
@@ -50,12 +53,15 @@
         <input id="search" placeholder="Buscar notícia, veículo ou assunto..." />
       </div>
 
+      <div id="ministerFilters" class="filters hidden"></div>
+
       <div id="boletimControls" class="boletim-controls hidden">
         <button data-edition="1">Gerar 1ª edição • 08h</button>
         <button data-edition="2">Gerar 2ª edição • 13h</button>
         <button data-edition="3">Gerar 3ª edição • 18h</button>
       </div>
 
+      <div id="loading" class="loading hidden">Buscando notícias...</div>
       <div id="newsList" class="news-list"></div>
     </section>
   </main>
