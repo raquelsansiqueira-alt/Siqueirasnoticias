@@ -1,53 +1,51 @@
 const express = require('express');
 const path = require('path');
 const Parser = require('rss-parser');
-const { GoogleDecoder } = require('google-news-url-decoder');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TZ = 'America/Sao_Paulo';
 
-const decoder = new GoogleDecoder();
-
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/2.1)'
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.0)',
+    'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
-    item: ['source']
+    item: ['News:Source', 'source']
   }
 });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const GOOGLE_NEWS = 'https://news.google.com/rss/search';
+const BING_NEWS = 'https://www.bing.com/news/search';
 
 const SOURCES = [
-  {name:'G1', aliases:['G1','g1'], domains:['g1.globo.com']},
-  {name:'Globo.com', aliases:['Globo.com','Globo'], domains:['globo.com']},
-  {name:'O Globo', aliases:['O Globo'], domains:['oglobo.globo.com']},
-  {name:'Estadão', aliases:['Estadão','Estadao','O Estado de S. Paulo'], domains:['estadao.com.br']},
-  {name:'Valor Econômico', aliases:['Valor Econômico','Valor Economico','Valor'], domains:['valor.globo.com']},
-  {name:'Correio Braziliense', aliases:['Correio Braziliense'], domains:['correiobraziliense.com.br']},
-  {name:'Folha de S.Paulo', aliases:['Folha de S.Paulo','Folha de S. Paulo','Folha'], domains:['folha.uol.com.br']},
-  {name:'CNN Brasil', aliases:['CNN Brasil'], domains:['cnnbrasil.com.br']},
-  {name:'Veja', aliases:['Veja'], domains:['veja.abril.com.br']},
-  {name:'IstoÉ', aliases:['IstoÉ','ISTOÉ','IstoE'], domains:['istoe.com.br']},
-  {name:'Metrópoles', aliases:['Metrópoles','Metropoles'], domains:['metropoles.com']},
-  {name:'UOL', aliases:['UOL'], domains:['uol.com.br']},
-  {name:'JOTA', aliases:['JOTA'], domains:['jota.info']},
-  {name:'BBC News Brasil', aliases:['BBC News Brasil','BBC Brasil','BBC'], domains:['bbc.com']},
-  {name:'ConJur', aliases:['Consultor Jurídico','Consultor Juridico','ConJur'], domains:['conjur.com.br']},
-  {name:'Migalhas', aliases:['Migalhas'], domains:['migalhas.com.br']},
-  {name:'R7', aliases:['R7'], domains:['r7.com']},
-  {name:'DW Brasil', aliases:['DW Brasil','DW'], domains:['dw.com']},
-  {name:'Poder360', aliases:['Poder360','Poder 360'], domains:['poder360.com.br']},
-  {name:'Agência Brasil', aliases:['Agência Brasil','Agencia Brasil'], domains:['agenciabrasil.ebc.com.br']},
-  {name:'O Tempo', aliases:['O Tempo'], domains:['otempo.com.br']},
-  {name:'ICL Notícias', aliases:['ICL Notícias','ICL Noticias','ICL'], domains:['iclnoticias.com.br']},
-  {name:'Revista Oeste', aliases:['Revista Oeste','Oeste'], domains:['revistaoeste.com']}
+  {name:'G1', domains:['g1.globo.com']},
+  {name:'Globo.com', domains:['globo.com']},
+  {name:'O Globo', domains:['oglobo.globo.com']},
+  {name:'Estadão', domains:['estadao.com.br']},
+  {name:'Valor Econômico', domains:['valor.globo.com']},
+  {name:'Correio Braziliense', domains:['correiobraziliense.com.br']},
+  {name:'Folha de S.Paulo', domains:['folha.uol.com.br']},
+  {name:'CNN Brasil', domains:['cnnbrasil.com.br']},
+  {name:'Veja', domains:['veja.abril.com.br']},
+  {name:'IstoÉ', domains:['istoe.com.br']},
+  {name:'Metrópoles', domains:['metropoles.com']},
+  {name:'UOL', domains:['uol.com.br']},
+  {name:'JOTA', domains:['jota.info']},
+  {name:'BBC News Brasil', domains:['bbc.com','bbc.co.uk']},
+  {name:'ConJur', domains:['conjur.com.br']},
+  {name:'Migalhas', domains:['migalhas.com.br']},
+  {name:'R7', domains:['r7.com']},
+  {name:'DW Brasil', domains:['dw.com']},
+  {name:'Poder360', domains:['poder360.com.br']},
+  {name:'Agência Brasil', domains:['agenciabrasil.ebc.com.br']},
+  {name:'O Tempo', domains:['otempo.com.br']},
+  {name:'ICL Notícias', domains:['iclnoticias.com.br']},
+  {name:'Revista Oeste', domains:['revistaoeste.com']}
 ];
 
 const MINISTERS = [
@@ -63,39 +61,35 @@ const MINISTERS = [
   {name:'Gilmar Mendes', label:'Ministro Gilmar Mendes', terms:['Gilmar Mendes']}
 ];
 
-// As buscas foram divididas em blocos menores para evitar URLs gigantes e melhorar a estabilidade.
 const QUERIES = {
   stf: [
-    '"Supremo Tribunal Federal" OR STF OR CNJ OR "Conselho Nacional de Justiça"',
-    '"Edson Fachin" OR "Cármen Lúcia" OR "Dias Toffoli" OR "Alexandre de Moraes"',
-    '"Luiz Fux" OR "Nunes Marques" OR "André Mendonça"',
-    '"Flávio Dino" OR "Cristiano Zanin" OR "Gilmar Mendes"'
+    '"Supremo Tribunal Federal" OR STF',
+    'CNJ OR "Conselho Nacional de Justiça"',
+    '"Edson Fachin" OR "Cármen Lúcia" OR "Dias Toffoli"',
+    '"Alexandre de Moraes" OR "Luiz Fux" OR "Nunes Marques"',
+    '"André Mendonça" OR "Flávio Dino" OR "Cristiano Zanin" OR "Gilmar Mendes"'
   ],
   judiciario: [
     'AJUFE OR "Associação dos Juízes Federais" OR "Justiça Federal"',
-    '"Supremo Tribunal Federal" OR STF OR CNJ OR "Conselho Nacional de Justiça"',
+    '"Supremo Tribunal Federal" OR STF',
+    'CNJ OR "Conselho Nacional de Justiça"',
     'STJ OR "Superior Tribunal de Justiça"',
     '"Edson Fachin" OR "Cármen Lúcia" OR "Dias Toffoli" OR "Alexandre de Moraes"',
     '"Luiz Fux" OR "Nunes Marques" OR "André Mendonça" OR "Flávio Dino" OR "Cristiano Zanin" OR "Gilmar Mendes"'
   ],
   saude: [
-    'saúde OR SUS OR Anvisa OR "Ministério da Saúde"',
-    '"plano de saúde" OR "planos de saúde" OR "saúde suplementar"',
-    'OMS OR "Organização Mundial da Saúde" OR hospital OR hospitais OR "rede hospitalar"',
-    '"Rede D\'Or" OR "Instituto Coalizão Saúde" OR "Instituto Consenso"'
+    'saúde OR SUS OR Anvisa',
+    '"Ministério da Saúde" OR "plano de saúde" OR "planos de saúde"',
+    'OMS OR "Organização Mundial da Saúde" OR hospital OR hospitais',
+    '"Rede D\'Or" OR "rede hospitalar"',
+    '"Instituto Coalizão Saúde" OR "Instituto Consenso"'
   ]
 };
 
 const CACHE_TTL_MS = 3 * 60 * 1000;
-let cache = { stf: [], judiciario: [], saude: [] };
-let cacheAt = { stf: 0, judiciario: 0, saude: 0 };
-let refreshing = { stf: null, judiciario: null, saude: null };
-const originalUrlCache = new Map();
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
+let cache = {stf:[], judiciario:[], saude:[]};
+let cacheAt = {stf:0, judiciario:0, saude:0};
+let refreshing = {stf:null, judiciario:null, saude:null};
 let diagnostics = {
   stf:{ok:false,count:0,error:null,lastAttempt:null},
   judiciario:{ok:false,count:0,error:null,lastAttempt:null},
@@ -106,39 +100,34 @@ function normalize(s='') {
   return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 }
 
-function splitGoogleTitle(title='') {
-  // O Google News normalmente usa: "Título da matéria - Nome do veículo".
-  const parts = String(title).split(' - ');
-  if (parts.length < 2) return {title:String(title).trim(), source:''};
-  const possibleSource = parts[parts.length - 1].trim();
-  return {
-    title: parts.slice(0, -1).join(' - ').trim(),
-    source: possibleSource
-  };
+function sourceFromUrl(url='') {
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./,'');
+    // Ordem importa: domínios mais específicos primeiro.
+    const ordered = [...SOURCES].sort((a,b) =>
+      Math.max(...b.domains.map(d=>d.length)) - Math.max(...a.domains.map(d=>d.length))
+    );
+    for (const source of ordered) {
+      for (const domain of source.domains) {
+        const d = domain.toLowerCase().replace(/^www\./,'');
+        if (host === d || host.endsWith('.'+d)) return source.name;
+      }
+    }
+  } catch {}
+  return '';
 }
 
-function extractRawSource(item) {
-  if (typeof item.source === 'string' && item.source.trim()) return item.source.trim();
-  if (item.source && typeof item.source === 'object') {
-    if (item.source._) return String(item.source._).trim();
-    if (item.source.title) return String(item.source.title).trim();
-  }
-  return splitGoogleTitle(item.title || '').source;
-}
-
-function canonicalSource(raw='') {
-  const n = normalize(raw);
-  if (!n) return '';
-  const found = SOURCES.find(s =>
-    s.aliases.some(a => n === normalize(a) || n.includes(normalize(a)) || normalize(a).includes(n))
-  );
-  return found ? found.name : '';
-}
-
-function cleanTitle(itemTitle='', rawSource='') {
-  const parsed = splitGoogleTitle(itemTitle);
-  if (rawSource && parsed.source && normalize(parsed.source) === normalize(rawSource)) return parsed.title;
-  return parsed.source ? parsed.title : String(itemTitle).trim();
+function originalFromBing(link='') {
+  try {
+    const u = new URL(link);
+    const host = u.hostname.toLowerCase();
+    if (host.endsWith('bing.com') && u.pathname.toLowerCase().includes('/news/apiclick.aspx')) {
+      const original = u.searchParams.get('url');
+      if (original && /^https?:\/\//i.test(original)) return original;
+    }
+    if (!host.endsWith('bing.com') && /^https?:\/\//i.test(link)) return link;
+  } catch {}
+  return null;
 }
 
 function classify(text='') {
@@ -149,8 +138,8 @@ function classify(text='') {
   if (/\bstj\b|superior tribunal de justica/.test(n)) tags.push('STJ');
   if (/\bajufe\b|associacao dos juizes federais/.test(n)) tags.push('Ajufe');
   if (/saude|sus|anvisa|\boms\b|hospital|plano de saude|ministerio da saude|rede d.?or/.test(n)) tags.push('Saúde');
-  MINISTERS.forEach(m => {
-    if (m.terms.some(t => n.includes(normalize(t)))) tags.push(m.name);
+  MINISTERS.forEach(m=>{
+    if (m.terms.some(t=>n.includes(normalize(t)))) tags.push(m.name);
   });
   return [...new Set(tags)];
 }
@@ -159,207 +148,100 @@ function moduleMatch(module, text='') {
   const n = normalize(text);
   if (module === 'stf') {
     return /\bstf\b|supremo tribunal federal|\bcnj\b|conselho nacional de justica/.test(n) ||
-      MINISTERS.some(m => m.terms.some(t => n.includes(normalize(t))));
+      MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t))));
   }
   if (module === 'judiciario') {
     return /\bajufe\b|associacao dos juizes federais|justica federal|\bstf\b|supremo tribunal federal|\bcnj\b|conselho nacional de justica|\bstj\b|superior tribunal de justica/.test(n) ||
-      MINISTERS.some(m => m.terms.some(t => n.includes(normalize(t))));
+      MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t))));
   }
   return /saude|sus|anvisa|\boms\b|organizacao mundial da saude|ministerio da saude|plano de saude|saude suplementar|rede hospitalar|hospital|rede d.?or|instituto coalizao saude|instituto consenso/.test(n);
 }
 
-
-async function resolveOriginalUrl(url) {
-  if (!url) return null;
-  if (!url.includes('news.google.com')) return url;
-
-  if (originalUrlCache.has(url)) return originalUrlCache.get(url);
-
-  let resolved = null;
-
-  // 1) Decoder principal
-  try {
-    const result = await decoder.decode(url);
-    if (result && result.status && result.decoded_url && !result.decoded_url.includes('news.google.com')) {
-      resolved = result.decoded_url;
-    }
-  } catch (err) {
-    console.warn('Decoder principal falhou:', err.message);
-  }
-
-  // 2) Segunda tentativa após pequena pausa
-  if (!resolved) {
-    await sleep(350);
-    try {
-      const result = await decoder.decode(url);
-      if (result && result.status && result.decoded_url && !result.decoded_url.includes('news.google.com')) {
-        resolved = result.decoded_url;
-      }
-    } catch (err) {
-      console.warn('Segunda tentativa de decoder falhou:', err.message);
-    }
-  }
-
-  originalUrlCache.set(url, resolved);
-  return resolved;
-}
-
-async function resolveForDisplay(items, maxItems=20) {
-  const chosen = items.slice(0, Math.max(maxItems * 2, 30));
-  const output = [];
-
-  // Primeiro aproveita URLs já resolvidas em cache.
-  for (const n of chosen) {
-    if (output.length >= maxItems) break;
-
-    if (n.url && !n.url.includes('news.google.com')) {
-      output.push(n);
-      continue;
-    }
-
-    if (originalUrlCache.has(n.url)) {
-      const cached = originalUrlCache.get(n.url);
-      if (cached) output.push({...n, url:cached});
-    }
-  }
-
-  if (output.length >= maxItems) return output.slice(0, maxItems);
-
-  // Resolve somente o necessário para preencher a tela.
-  const unresolved = chosen.filter(n =>
-    n.url &&
-    n.url.includes('news.google.com') &&
-    !originalUrlCache.has(n.url)
-  );
-
-  for (let i = 0; i < unresolved.length && output.length < maxItems; i += 4) {
-    const batch = unresolved.slice(i, i + 4);
-    let results = null;
-
-    try {
-      results = await decoder.decodeBatch(batch.map(n => n.url));
-    } catch (err) {
-      console.warn('decodeBatch sob demanda falhou:', err.message);
-    }
-
-    for (let j = 0; j < batch.length && output.length < maxItems; j++) {
-      const n = batch[j];
-      const r = results && results[j];
-      let original =
-        r &&
-        r.status &&
-        r.decoded_url &&
-        !r.decoded_url.includes('news.google.com')
-          ? r.decoded_url
-          : null;
-
-      if (!original) {
-        try {
-          original = await resolveOriginalUrl(n.url);
-        } catch {}
-      }
-
-      originalUrlCache.set(n.url, original || null);
-
-      if (original) {
-        output.push({...n, url:original});
-      }
-    }
-
-    if (output.length < maxItems) await sleep(300);
-  }
-
-  return output.slice(0, maxItems);
-}
-
-
 function feedUrl(query) {
-  const params = new URLSearchParams({
+  const p = new URLSearchParams({
     q: query,
-    hl: 'pt-BR',
-    gl: 'BR',
-    ceid: 'BR:pt-419'
+    format: 'RSS',
+    setmkt: 'pt-BR',
+    qft: 'interval="7"'
   });
-  return `${GOOGLE_NEWS}?${params.toString()}`;
+  return `${BING_NEWS}?${p.toString()}`;
 }
 
 async function loadFeed(query) {
-  // Usar fetch + parseString dá mensagens de erro mais claras que parseURL.
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/2.1)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.0)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
-  if (!response.ok) throw new Error(`Google News respondeu HTTP ${response.status}`);
+  if (!response.ok) throw new Error(`Bing News respondeu HTTP ${response.status}`);
   const xml = await response.text();
-  if (!xml.includes('<rss') && !xml.includes('<feed')) throw new Error('Resposta recebida não parece ser RSS/Atom');
+  if (!xml.includes('<rss')) throw new Error('Resposta do Bing não parece ser RSS');
   return parser.parseString(xml);
 }
 
 async function fetchModule(module, force=false) {
   const now = Date.now();
-  if (!force && cache[module].length && now - cacheAt[module] < CACHE_TTL_MS) return cache[module];
+  if (!force && cache[module].length && now-cacheAt[module] < CACHE_TTL_MS) return cache[module];
   if (refreshing[module]) return refreshing[module];
 
   diagnostics[module].lastAttempt = new Date().toISOString();
   diagnostics[module].error = null;
 
-  refreshing[module] = (async () => {
+  refreshing[module] = (async()=>{
     const results = await Promise.allSettled(QUERIES[module].map(loadFeed));
-    const successful = results.filter(r => r.status === 'fulfilled');
-    const failures = results.filter(r => r.status === 'rejected');
+    const ok = results.filter(r=>r.status==='fulfilled');
+    const failed = results.filter(r=>r.status==='rejected');
 
-    if (!successful.length) {
-      const errors = failures.map(f => f.reason?.message || String(f.reason)).join(' | ');
-      throw new Error(errors || 'Nenhum feed respondeu');
+    if (!ok.length) {
+      throw new Error(failed.map(f=>f.reason?.message || String(f.reason)).join(' | ') || 'Nenhum feed respondeu');
     }
 
-    const allItems = successful.flatMap(r => r.value.items || []);
-    const mapped = allItems.map((item, idx) => {
-      const rawSource = extractRawSource(item);
-      const source = canonicalSource(rawSource);
-      const title = cleanTitle(item.title || 'Sem título', rawSource);
-      const summary = String(item.contentSnippet || item.content || '')
+    const rawItems = ok.flatMap(r=>r.value.items || []);
+    const mapped = rawItems.map((item, idx)=>{
+      const originalUrl = originalFromBing(item.link);
+      if (!originalUrl) return null;
+
+      const source = sourceFromUrl(originalUrl);
+      if (!source) return null;
+
+      const title = String(item.title || 'Sem título').trim();
+      const summary = String(item.contentSnippet || item.content || item.description || '')
         .replace(/<[^>]+>/g,' ')
         .replace(/\s+/g,' ')
         .trim();
       const text = `${title} ${summary}`;
+
       return {
-        id: item.guid || item.id || `${module}-${idx}-${item.link}`,
+        id: item.guid || item.id || `${module}-${idx}-${originalUrl}`,
         module,
         title,
         source,
-        rawSource,
-        url: item.link,
+        url: originalUrl,
         publishedAt: item.isoDate || item.pubDate || new Date().toISOString(),
         summary,
         tags: classify(text)
       };
-    }).filter(n => n.source && moduleMatch(module, `${n.title} ${n.summary}`));
+    }).filter(Boolean).filter(n=>moduleMatch(module, `${n.title} ${n.summary}`));
 
     const seen = new Set();
-    const unique = mapped.filter(n => {
+    const unique = mapped.filter(n=>{
       const key = normalize(`${n.source}|${n.title}`);
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
-    }).sort((a,b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+    }).sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
 
-    // Guardamos as notícias encontradas. Os links originais são resolvidos
-    // somente quando a notícia realmente vai aparecer no painel/boletim.
     cache[module] = unique;
     cacheAt[module] = Date.now();
     diagnostics[module] = {
       ok:true,
       count:unique.length,
-      discovered:unique.length,
-      resolvedUrlCache:[...originalUrlCache.values()].filter(Boolean).length,
-      error:failures.length ? failures.map(f => f.reason?.message || String(f.reason)).join(' | ') : null,
+      error:failed.length ? failed.map(f=>f.reason?.message || String(f.reason)).join(' | ') : null,
       lastAttempt:new Date().toISOString()
     };
     return unique;
-  })().catch(err => {
+  })().catch(err=>{
     console.error(`Erro ao atualizar ${module}:`, err);
     diagnostics[module] = {
       ok:false,
@@ -368,128 +250,113 @@ async function fetchModule(module, force=false) {
       lastAttempt:new Date().toISOString()
     };
     return cache[module] || [];
-  }).finally(() => {
+  }).finally(()=>{
     refreshing[module] = null;
   });
 
   return refreshing[module];
 }
 
-function filterNews(items, q, minister, tag) {
+function filterNews(items,q,minister,tag) {
   let out = items;
   if (q) {
     const term = normalize(q);
-    out = out.filter(n => normalize(`${n.title} ${n.source} ${n.summary} ${n.tags.join(' ')}`).includes(term));
+    out = out.filter(n=>normalize(`${n.title} ${n.source} ${n.summary} ${n.tags.join(' ')}`).includes(term));
   }
-  if (minister) out = out.filter(n => n.tags.some(t => normalize(t) === normalize(minister)));
-  if (tag) out = out.filter(n => n.tags.some(t => normalize(t) === normalize(tag)));
+  if (minister) out = out.filter(n=>n.tags.some(t=>normalize(t)===normalize(minister)));
+  if (tag) out = out.filter(n=>n.tags.some(t=>normalize(t)===normalize(tag)));
   return out;
 }
 
-app.get('/api/config', (_, res) => {
+app.get('/api/config',(_,res)=>{
   res.json({
-    sources: SOURCES.map(s => s.name),
-    ministers: MINISTERS.map(m => ({name:m.name, label:m.label}))
+    sources:SOURCES.map(s=>s.name),
+    ministers:MINISTERS.map(m=>({name:m.name,label:m.label}))
   });
 });
 
-app.get('/api/news', async (req, res) => {
+app.get('/api/news',async(req,res)=>{
   const module = ['stf','judiciario','saude'].includes(req.query.module) ? req.query.module : 'stf';
-  const items = await fetchModule(module, false);
-  const filtered = filterNews(items, req.query.q, req.query.minister, req.query.tag);
-  const resolved = await resolveForDisplay(filtered, 20);
-  res.json(resolved);
+  const items = await fetchModule(module,false);
+  res.json(filterNews(items,req.query.q,req.query.minister,req.query.tag).slice(0,40));
 });
 
-app.post('/api/refresh', async (req, res) => {
+app.post('/api/refresh',async(req,res)=>{
   const module = ['stf','judiciario','saude'].includes(req.body.module) ? req.body.module : 'stf';
-  const items = await fetchModule(module, true);
-  res.json({ok:diagnostics[module].ok, module, count:items.length, updatedAt:new Date().toISOString(), diagnostics:diagnostics[module]});
+  const items = await fetchModule(module,true);
+  res.json({ok:diagnostics[module].ok,module,count:items.length,diagnostics:diagnostics[module]});
 });
 
-app.get('/api/status', (_, res) => {
-  res.json({
-    version:'2.6',
-    now:new Date().toISOString(),
-    modules:diagnostics
-  });
+app.get('/api/status',(_,res)=>{
+  res.json({version:'3.0',now:new Date().toISOString(),modules:diagnostics});
 });
 
 function formatDate(now) {
-  const weekday = new Intl.DateTimeFormat('pt-BR',{weekday:'long', timeZone:TZ}).format(now);
-  const date = new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'long',year:'numeric', timeZone:TZ}).format(now);
+  const weekday = new Intl.DateTimeFormat('pt-BR',{weekday:'long',timeZone:TZ}).format(now);
+  const date = new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'long',year:'numeric',timeZone:TZ}).format(now);
   return `${weekday.charAt(0).toUpperCase()+weekday.slice(1)}, ${date}`;
 }
 
 function newsLine(n) {
-  return `*${n.source}* - ${n.title}
-${n.url}
--`;
+  return `*${n.source}* - ${n.title}\n${n.url}\n-`;
 }
 
-function selectDiverse(items, max, used=new Set()) {
-  const selected = [];
+function selectDiverse(items,max,used=new Set()) {
+  const selected=[];
   for (const n of items) {
-    const key = normalize(`${n.source}|${n.title}`);
+    const key=normalize(`${n.source}|${n.title}`);
     if (used.has(key)) continue;
     selected.push(n);
     used.add(key);
-    if (selected.length >= max) break;
+    if (selected.length>=max) break;
   }
   return selected;
 }
 
-app.get('/api/boletim/:edition', async (req, res) => {
-  const edition = Number(req.params.edition);
+app.get('/api/boletim/:edition',async(req,res)=>{
+  const edition=Number(req.params.edition);
   if (![1,2,3].includes(edition)) return res.status(400).json({error:'Edição inválida'});
 
-  const rawItems = await fetchModule('judiciario', false);
-  const items = await resolveForDisplay(rawItems, 30);
-  const now = new Date();
-  const used = new Set();
-  const cutoffHours = edition === 1 ? 24 : 8;
-  const recent = items.filter(n => now - new Date(n.publishedAt) <= cutoffHours*60*60*1000);
-  const pool = recent.length >= 5 ? recent : items;
+  const items=await fetchModule('judiciario',false);
+  const now=new Date();
+  const used=new Set();
+  const cutoffHours=edition===1?24:8;
+  const recent=items.filter(n=>now-new Date(n.publishedAt)<=cutoffHours*60*60*1000);
+  const pool=recent.length>=5?recent:items;
 
-  let text = `*BOLETIM - ${edition}ª EDIÇÃO*\n_${formatDate(now)}_\n-`;
+  let text=`*BOLETIM - ${edition}ª EDIÇÃO*\n_${formatDate(now)}_\n-`;
 
-  if (edition === 1) {
-    const hot = selectDiverse(pool, 3, used);
-    if (hot.length) text += `\n*ASSUNTO DO MOMENTO*\n-\n${hot.map(newsLine).join('\n')}`;
+  if (edition===1) {
+    const hot=selectDiverse(pool,3,used);
+    if (hot.length) text+=`\n*ASSUNTO DO MOMENTO*\n-\n${hot.map(newsLine).join('\n')}`;
 
-    const tres = selectDiverse(pool.filter(n => n.tags.includes('STF') || n.tags.includes('CNJ') || n.tags.some(t => MINISTERS.some(m => m.name === t))), 5, used);
-    if (tres.length) text += `\n*TRÊS PODERES*\n-\n${tres.map(newsLine).join('\n')}`;
+    const tres=selectDiverse(pool.filter(n=>n.tags.includes('STF')||n.tags.includes('CNJ')||n.tags.some(t=>MINISTERS.some(m=>m.name===t))),5,used);
+    if (tres.length) text+=`\n*TRÊS PODERES*\n-\n${tres.map(newsLine).join('\n')}`;
 
-    const jud = selectDiverse(pool.filter(n => n.tags.includes('STJ') || n.tags.includes('Ajufe') || n.tags.includes('CNJ')), 5, used);
-    if (jud.length) text += `\n*ADVOCACIA E JUDICIÁRIO*\n-\n${jud.map(newsLine).join('\n')}`;
+    const jud=selectDiverse(pool.filter(n=>n.tags.includes('STJ')||n.tags.includes('Ajufe')||n.tags.includes('CNJ')),5,used);
+    if (jud.length) text+=`\n*ADVOCACIA E JUDICIÁRIO*\n-\n${jud.map(newsLine).join('\n')}`;
   } else {
-    text += `\n*AJUFE, CNJ, STF, MINISTROS DO STF E STJ*\n-\n`;
-    text += selectDiverse(pool, 12, used).map(newsLine).join('\n');
+    text+=`\n*AJUFE, CNJ, STF, MINISTROS DO STF E STJ*\n-\n`;
+    text+=selectDiverse(pool,12,used).map(newsLine).join('\n');
   }
 
-  res.json({edition, text, generatedAt:now.toISOString()});
+  res.json({edition,text,generatedAt:now.toISOString()});
 });
 
-app.get('/api/clipping/ministers', async (_, res) => {
-  const items = await fetchModule('stf', false);
-  const result = [];
-  for (const m of MINISTERS) {
-    const ministerItems = items.filter(n => n.tags.includes(m.name));
-    const resolved = await resolveForDisplay(ministerItems, 10);
-    result.push({
-      minister:m.name,
-      title:`Clipping - ${m.label}`,
-      items:resolved
-    });
-  }
-  res.json(result);
+app.get('/api/clipping/ministers',async(_,res)=>{
+  const items=await fetchModule('stf',false);
+  res.json(MINISTERS.map(m=>({
+    minister:m.name,
+    title:`Clipping - ${m.label}`,
+    items:items.filter(n=>n.tags.includes(m.name)).slice(0,20)
+  })));
 });
 
-app.get('/health', (_, res) => res.json({ok:true,version:'2.6',now:new Date().toISOString()}));
-app.get('*', (_, res) => res.sendFile(path.join(__dirname,'public','index.html')));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.0',now:new Date().toISOString()}));
+app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
-app.listen(PORT, () => {
-  console.log(`Central de Notícias v2.6 ativa na porta ${PORT}`);
-  ['stf','judiciario','saude'].forEach(m => fetchModule(m, true));
-  setInterval(() => ['stf','judiciario','saude'].forEach(m => fetchModule(m, true)), CACHE_TTL_MS);
+app.listen(PORT,()=>{
+  console.log(`Central de Notícias v3.0 ativa na porta ${PORT}`);
+  ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
+  setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });

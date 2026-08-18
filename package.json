@@ -1,6 +1,6 @@
 {
   "name": "central-noticias",
-  "version": "2.5.0",
+  "version": "3.0.0",
   "private": true,
   "description": "Painel de monitoramento de notícias - STF, Judiciário e Saúde",
   "main": "server.js",
@@ -9,7 +9,6 @@
   },
   "dependencies": {
     "express": "^4.21.2",
-    "rss-parser": "^3.13.0",
-    "google-news-url-decoder": "^1.2.2"
+    "rss-parser": "^3.13.0"
   }
 }
