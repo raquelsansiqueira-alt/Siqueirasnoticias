@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.4.3)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.5)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -163,7 +163,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.4.3)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.5)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -274,7 +274,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.4.3)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.5)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -395,8 +395,152 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.4.3',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.5',now:new Date().toISOString(),modules:diagnostics});
 });
+
+
+const FIRST_EDITION_QUERIES = {
+  momento: [
+    'Brasil',
+    'Mundo',
+    '"notícias de hoje" Brasil',
+    'política Brasil',
+    'economia Brasil'
+  ],
+  tresPoderes: [
+    'STF OR "Supremo Tribunal Federal" OR Planalto OR Presidência',
+    'Lula OR "governo federal" OR ministro',
+    'Senado OR Câmara OR Congresso OR "Congresso Nacional"'
+  ],
+  judiciario: [
+    'STJ OR "Superior Tribunal de Justiça"',
+    'TSE OR "Tribunal Superior Eleitoral"',
+    'CNJ OR "Conselho Nacional de Justiça"',
+    '"Justiça Federal" OR tribunal OR Judiciário',
+    'advocacia OR PGR OR "Ministério Público"'
+  ],
+  economia: [
+    '"economia brasileira" OR inflação OR juros OR Selic',
+    'dólar OR Bolsa OR Ibovespa OR mercado',
+    'PIB OR emprego OR desemprego OR Tesouro',
+    'petróleo OR ouro OR bancos OR crédito'
+  ]
+};
+
+async function fetchEditorialQueries(queries) {
+  const results = await Promise.allSettled(queries.map(loadFeed));
+  const feeds = results.filter(r => r.status === 'fulfilled');
+  const rawItems = feeds.flatMap(r => r.value.items || []);
+
+  const mapped = rawItems.map((item, idx) => {
+    const originalUrl = originalFromBing(item.link);
+    if (!originalUrl) return null;
+
+    const source = sourceFromUrl(originalUrl);
+    if (!source) return null;
+
+    const title = String(item.title || 'Sem título').trim();
+    const summary = String(item.contentSnippet || item.content || item.description || '')
+      .replace(/<[^>]+>/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    return {
+      id: item.guid || item.id || `editorial-${idx}-${originalUrl}`,
+      title,
+      source,
+      url: originalUrl,
+      publishedAt: item.isoDate || item.pubDate || new Date().toISOString(),
+      summary,
+      tags: classify(`${title} ${summary}`)
+    };
+  }).filter(Boolean);
+
+  const seen = new Set();
+  const unique = mapped.filter(n => {
+    const key = normalize(`${n.source}|${n.title}`);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const enriched = await enrichPublishedTimes(unique.slice(0,60),60);
+  enriched.sort((a,b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+  return enriched;
+}
+
+function recentEnough(items, hours=24) {
+  const now = Date.now();
+  const recent = items.filter(n => now - new Date(n.publishedAt).getTime() <= hours*60*60*1000);
+  return recent.length ? recent : items;
+}
+
+function headlineWords(text='') {
+  return normalize(text)
+    .replace(/[^a-z0-9\s]/g,' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 5 && ![
+      'sobre','entre','depois','antes','brasil','brasileiro','brasileira',
+      'noticia','noticias','governo','afirma','segundo','contra','pode',
+      'para','pela','pelos','pelas','mais','como','esta','esse','essa'
+    ].includes(w));
+}
+
+function momentScore(item, allItems) {
+  const ageHours = Math.max(0, (Date.now() - new Date(item.publishedAt).getTime()) / 3600000);
+  const recency = Math.max(0, 30 - ageHours);
+
+  const words = new Set(headlineWords(item.title));
+  let relatedSources = new Set([item.source]);
+  let relatedCount = 1;
+
+  for (const other of allItems) {
+    if (other === item) continue;
+    const otherWords = new Set(headlineWords(other.title));
+    let common = 0;
+    for (const w of words) if (otherWords.has(w)) common++;
+    if (common >= 2) {
+      relatedCount++;
+      relatedSources.add(other.source);
+    }
+  }
+
+  // Repercussão em mais veículos pesa bastante; recência desempata.
+  return recency + relatedCount*8 + relatedSources.size*10;
+}
+
+function selectMoment(items, max, used) {
+  const sorted = [...items].sort((a,b) => momentScore(b,items) - momentScore(a,items));
+  const selected = [];
+  const sources = new Set();
+
+  for (const n of sorted) {
+    const key = normalize(`${n.source}|${n.title}`);
+    if (used.has(key)) continue;
+
+    // Para os destaques gerais, prioriza variedade de veículos.
+    if (sources.has(n.source) && selected.length < max-1) continue;
+
+    selected.push(n);
+    sources.add(n.source);
+    used.add(key);
+    if (selected.length >= max) break;
+  }
+
+  return selected;
+}
+
+function selectEditorial(items, max, used) {
+  const selected = [];
+  for (const n of items) {
+    const key = normalize(`${n.source}|${n.title}`);
+    if (used.has(key)) continue;
+    selected.push(n);
+    used.add(key);
+    if (selected.length >= max) break;
+  }
+  return selected;
+}
 
 function formatDate(now) {
   const weekday = new Intl.DateTimeFormat('pt-BR',{weekday:'long',timeZone:TZ}).format(now);
@@ -424,30 +568,59 @@ app.get('/api/boletim/:edition',async(req,res)=>{
   const edition=Number(req.params.edition);
   if (![1,2,3].includes(edition)) return res.status(400).json({error:'Edição inválida'});
 
+  const now=new Date();
+  let text=`*BOLETIM - ${edition}ª EDIÇÃO*\n_${formatDate(now)}_\n-`;
+
+  // A estrutura editorial especial existe SOMENTE na 1ª edição.
+  if (edition===1) {
+    const used=new Set();
+
+    const [momentoRaw,tresRaw,judRaw,economiaRaw] = await Promise.all([
+      fetchEditorialQueries(FIRST_EDITION_QUERIES.momento),
+      fetchEditorialQueries(FIRST_EDITION_QUERIES.tresPoderes),
+      fetchEditorialQueries(FIRST_EDITION_QUERIES.judiciario),
+      fetchEditorialQueries(FIRST_EDITION_QUERIES.economia)
+    ]);
+
+    const momento=recentEnough(momentoRaw,24);
+    const tres=recentEnough(tresRaw,24);
+    const jud=recentEnough(judRaw,24);
+    const economia=recentEnough(economiaRaw,24);
+
+    const hot=selectMoment(momento,3,used);
+    if (hot.length) {
+      text+=`\n*Assunto do Momento:*\n${hot.map(newsLine).join('\n')}`;
+    }
+
+    const tresSel=selectEditorial(tres,5,used);
+    if (tresSel.length) {
+      text+=`\n*TRÊS PODERES*\n-\n${tresSel.map(newsLine).join('\n')}`;
+    }
+
+    const judSel=selectEditorial(jud,5,used);
+    if (judSel.length) {
+      text+=`\n*ADVOCACIA E JUDICIÁRIO*\n-\n${judSel.map(newsLine).join('\n')}`;
+    }
+
+    const ecoSel=selectEditorial(economia,3,used);
+    if (ecoSel.length) {
+      text+=`\n*ECONOMIA E MERCADO*\n-\n${ecoSel.map(newsLine).join('\n')}`;
+    }
+
+    return res.json({edition,text,generatedAt:now.toISOString()});
+  }
+
+  // 2ª e 3ª edições permanecem com a lógica anterior.
   const rawItems=await fetchModule('judiciario',false);
   const items=await enrichPublishedTimes(rawItems.slice(0,40),40);
   items.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
-  const now=new Date();
+
   const used=new Set();
-  const cutoffHours=edition===1?24:8;
-  const recent=items.filter(n=>now-new Date(n.publishedAt)<=cutoffHours*60*60*1000);
+  const recent=items.filter(n=>now-new Date(n.publishedAt)<=8*60*60*1000);
   const pool=recent.length>=5?recent:items;
 
-  let text=`*BOLETIM - ${edition}ª EDIÇÃO*\n_${formatDate(now)}_\n-`;
-
-  if (edition===1) {
-    const hot=selectDiverse(pool,3,used);
-    if (hot.length) text+=`\n*ASSUNTO DO MOMENTO*\n-\n${hot.map(newsLine).join('\n')}`;
-
-    const tres=selectDiverse(pool.filter(n=>n.tags.includes('STF')||n.tags.includes('CNJ')||n.tags.some(t=>MINISTERS.some(m=>m.name===t))),5,used);
-    if (tres.length) text+=`\n*TRÊS PODERES*\n-\n${tres.map(newsLine).join('\n')}`;
-
-    const jud=selectDiverse(pool.filter(n=>n.tags.includes('STJ')||n.tags.includes('Ajufe')||n.tags.includes('CNJ')),5,used);
-    if (jud.length) text+=`\n*ADVOCACIA E JUDICIÁRIO*\n-\n${jud.map(newsLine).join('\n')}`;
-  } else {
-    text+=`\n*AJUFE, CNJ, STF, MINISTROS DO STF E STJ*\n-\n`;
-    text+=selectDiverse(pool,12,used).map(newsLine).join('\n');
-  }
+  text+=`\n*AJUFE, CNJ, STF, MINISTROS DO STF E STJ*\n-\n`;
+  text+=selectDiverse(pool,12,used).map(newsLine).join('\n');
 
   res.json({edition,text,generatedAt:now.toISOString()});
 });
@@ -468,11 +641,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.4.3',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.5',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.4.3 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.5 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
