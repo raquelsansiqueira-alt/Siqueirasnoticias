@@ -204,42 +204,74 @@ async function resolveOriginalUrl(url) {
   return resolved;
 }
 
-async function resolveUrlsOriginalOnly(items, limit=70) {
-  const head = items.slice(0, limit);
+async function resolveForDisplay(items, maxItems=20) {
+  const chosen = items.slice(0, Math.max(maxItems * 2, 30));
   const output = [];
 
-  // Lotes pequenos para reduzir bloqueios/rate-limit do Google.
-  for (let i = 0; i < head.length; i += 5) {
-    const batch = head.slice(i, i + 5);
+  // Primeiro aproveita URLs já resolvidas em cache.
+  for (const n of chosen) {
+    if (output.length >= maxItems) break;
 
-    let batchResults = null;
-    try {
-      batchResults = await decoder.decodeBatch(batch.map(n => n.url));
-    } catch (err) {
-      console.warn('decodeBatch falhou:', err.message);
+    if (n.url && !n.url.includes('news.google.com')) {
+      output.push(n);
+      continue;
     }
 
-    for (let j = 0; j < batch.length; j++) {
+    if (originalUrlCache.has(n.url)) {
+      const cached = originalUrlCache.get(n.url);
+      if (cached) output.push({...n, url:cached});
+    }
+  }
+
+  if (output.length >= maxItems) return output.slice(0, maxItems);
+
+  // Resolve somente o necessário para preencher a tela.
+  const unresolved = chosen.filter(n =>
+    n.url &&
+    n.url.includes('news.google.com') &&
+    !originalUrlCache.has(n.url)
+  );
+
+  for (let i = 0; i < unresolved.length && output.length < maxItems; i += 4) {
+    const batch = unresolved.slice(i, i + 4);
+    let results = null;
+
+    try {
+      results = await decoder.decodeBatch(batch.map(n => n.url));
+    } catch (err) {
+      console.warn('decodeBatch sob demanda falhou:', err.message);
+    }
+
+    for (let j = 0; j < batch.length && output.length < maxItems; j++) {
       const n = batch[j];
-      const r = batchResults && batchResults[j];
-      let original = r && r.status && r.decoded_url && !r.decoded_url.includes('news.google.com')
-        ? r.decoded_url
-        : null;
+      const r = results && results[j];
+      let original =
+        r &&
+        r.status &&
+        r.decoded_url &&
+        !r.decoded_url.includes('news.google.com')
+          ? r.decoded_url
+          : null;
 
-      if (!original) original = await resolveOriginalUrl(n.url);
+      if (!original) {
+        try {
+          original = await resolveOriginalUrl(n.url);
+        } catch {}
+      }
 
-      // REGRA: link do Google News nunca entra no painel/boletim.
-      if (original && !original.includes('news.google.com')) {
-        originalUrlCache.set(n.url, original);
-        output.push({...n, url: original});
+      originalUrlCache.set(n.url, original || null);
+
+      if (original) {
+        output.push({...n, url:original});
       }
     }
 
-    if (i + 5 < head.length) await sleep(250);
+    if (output.length < maxItems) await sleep(300);
   }
 
-  return output;
+  return output.slice(0, maxItems);
 }
+
 
 function feedUrl(query) {
   const params = new URLSearchParams({
@@ -314,20 +346,19 @@ async function fetchModule(module, force=false) {
       return true;
     }).sort((a,b) => new Date(b.publishedAt) - new Date(a.publishedAt));
 
-    // A partir daqui, só armazenamos itens cujo link original do veículo foi resolvido.
-    const originalOnly = await resolveUrlsOriginalOnly(unique, 70);
-
-    cache[module] = originalOnly;
+    // Guardamos as notícias encontradas. Os links originais são resolvidos
+    // somente quando a notícia realmente vai aparecer no painel/boletim.
+    cache[module] = unique;
     cacheAt[module] = Date.now();
     diagnostics[module] = {
       ok:true,
-      count:originalOnly.length,
+      count:unique.length,
       discovered:unique.length,
-      discardedGoogleLinks:Math.max(0, unique.length - originalOnly.length),
+      resolvedUrlCache:[...originalUrlCache.values()].filter(Boolean).length,
       error:failures.length ? failures.map(f => f.reason?.message || String(f.reason)).join(' | ') : null,
       lastAttempt:new Date().toISOString()
     };
-    return originalOnly;
+    return unique;
   })().catch(err => {
     console.error(`Erro ao atualizar ${module}:`, err);
     diagnostics[module] = {
@@ -365,9 +396,9 @@ app.get('/api/config', (_, res) => {
 app.get('/api/news', async (req, res) => {
   const module = ['stf','judiciario','saude'].includes(req.query.module) ? req.query.module : 'stf';
   const items = await fetchModule(module, false);
-  const filtered = filterNews(items, req.query.q, req.query.minister, req.query.tag)
-    .filter(n => n.url && !n.url.includes('news.google.com'));
-  res.json(filtered);
+  const filtered = filterNews(items, req.query.q, req.query.minister, req.query.tag);
+  const resolved = await resolveForDisplay(filtered, 20);
+  res.json(resolved);
 });
 
 app.post('/api/refresh', async (req, res) => {
@@ -378,7 +409,7 @@ app.post('/api/refresh', async (req, res) => {
 
 app.get('/api/status', (_, res) => {
   res.json({
-    version:'2.5',
+    version:'2.6',
     now:new Date().toISOString(),
     modules:diagnostics
   });
@@ -412,7 +443,8 @@ app.get('/api/boletim/:edition', async (req, res) => {
   const edition = Number(req.params.edition);
   if (![1,2,3].includes(edition)) return res.status(400).json({error:'Edição inválida'});
 
-  const items = await fetchModule('judiciario', false);
+  const rawItems = await fetchModule('judiciario', false);
+  const items = await resolveForDisplay(rawItems, 30);
   const now = new Date();
   const used = new Set();
   const cutoffHours = edition === 1 ? 24 : 8;
@@ -440,18 +472,24 @@ app.get('/api/boletim/:edition', async (req, res) => {
 
 app.get('/api/clipping/ministers', async (_, res) => {
   const items = await fetchModule('stf', false);
-  res.json(MINISTERS.map(m => ({
-    minister:m.name,
-    title:`Clipping - ${m.label}`,
-    items:items.filter(n => n.tags.includes(m.name)).slice(0,20)
-  })));
+  const result = [];
+  for (const m of MINISTERS) {
+    const ministerItems = items.filter(n => n.tags.includes(m.name));
+    const resolved = await resolveForDisplay(ministerItems, 10);
+    result.push({
+      minister:m.name,
+      title:`Clipping - ${m.label}`,
+      items:resolved
+    });
+  }
+  res.json(result);
 });
 
-app.get('/health', (_, res) => res.json({ok:true,version:'2.5',now:new Date().toISOString()}));
+app.get('/health', (_, res) => res.json({ok:true,version:'2.6',now:new Date().toISOString()}));
 app.get('*', (_, res) => res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT, () => {
-  console.log(`Central de Notícias v2.5 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v2.6 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m => fetchModule(m, true));
   setInterval(() => ['stf','judiciario','saude'].forEach(m => fetchModule(m, true)), CACHE_TTL_MS);
 });
