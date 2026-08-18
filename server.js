@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.0)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.1)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -96,6 +96,110 @@ let diagnostics = {
   saude:{ok:false,count:0,error:null,lastAttempt:null}
 };
 
+const publishedTimeCache = new Map();
+
+function decodeHtmlEntities(value='') {
+  return String(value)
+    .replace(/&quot;/g, '"')
+    .replace(/&#34;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function firstValidDate(values) {
+  for (const value of values) {
+    if (!value) continue;
+    const cleaned = decodeHtmlEntities(String(value)).trim();
+    const d = new Date(cleaned);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  return null;
+}
+
+function extractPublishedTimeFromHtml(html='') {
+  const candidates = [];
+
+  // Metatags muito usados pelos portais jornalísticos.
+  const metaPatterns = [
+    /<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']+)["']/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']article:published_time["']/gi,
+    /<meta[^>]+name=["']date["'][^>]+content=["']([^"']+)["']/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']date["']/gi,
+    /<meta[^>]+name=["']pubdate["'][^>]+content=["']([^"']+)["']/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']pubdate["']/gi,
+    /<meta[^>]+itemprop=["']datePublished["'][^>]+content=["']([^"']+)["']/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+itemprop=["']datePublished["']/gi
+  ];
+
+  for (const pattern of metaPatterns) {
+    let m;
+    while ((m = pattern.exec(html)) !== null) candidates.push(m[1]);
+  }
+
+  // JSON-LD: datePublished é o padrão mais comum em NewsArticle/Article.
+  const jsonDate = /"datePublished"\s*:\s*"([^"]+)"/gi;
+  let jm;
+  while ((jm = jsonDate.exec(html)) !== null) candidates.push(jm[1]);
+
+  // Alguns portais usam dateCreated como data principal quando datePublished não existe.
+  const jsonCreated = /"dateCreated"\s*:\s*"([^"]+)"/gi;
+  let jc;
+  while ((jc = jsonCreated.exec(html)) !== null) candidates.push(jc[1]);
+
+  return firstValidDate(candidates);
+}
+
+async function getOriginalPublishedTime(url, fallback) {
+  if (!url) return fallback;
+  if (publishedTimeCache.has(url)) return publishedTimeCache.get(url);
+
+  let published = null;
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(url, {
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: {
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.1)',
+        'Accept':'text/html,application/xhtml+xml'
+      }
+    });
+
+    clearTimeout(timer);
+
+    if (response.ok) {
+      const html = await response.text();
+      published = extractPublishedTimeFromHtml(html);
+    }
+  } catch (err) {
+    console.warn('Horário original indisponível:', url, err.message);
+  }
+
+  const result = published || fallback;
+  publishedTimeCache.set(url, result);
+  return result;
+}
+
+async function enrichPublishedTimes(items, maxItems=40) {
+  const selected = items.slice(0, maxItems);
+  const output = [];
+
+  // Pequenos lotes para não sobrecarregar os veículos nem o Render.
+  for (let i = 0; i < selected.length; i += 5) {
+    const batch = selected.slice(i, i + 5);
+    const enriched = await Promise.all(batch.map(async item => ({
+      ...item,
+      publishedAt: await getOriginalPublishedTime(item.url, item.publishedAt)
+    })));
+    output.push(...enriched);
+  }
+
+  return output;
+}
+
 function normalize(s='') {
   return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 }
@@ -170,7 +274,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.0)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.1)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -278,7 +382,10 @@ app.get('/api/config',(_,res)=>{
 app.get('/api/news',async(req,res)=>{
   const module = ['stf','judiciario','saude'].includes(req.query.module) ? req.query.module : 'stf';
   const items = await fetchModule(module,false);
-  res.json(filterNews(items,req.query.q,req.query.minister,req.query.tag).slice(0,40));
+  const filtered = filterNews(items,req.query.q,req.query.minister,req.query.tag).slice(0,40);
+  const enriched = await enrichPublishedTimes(filtered,40);
+  enriched.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
+  res.json(enriched);
 });
 
 app.post('/api/refresh',async(req,res)=>{
@@ -288,7 +395,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.0',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.1',now:new Date().toISOString(),modules:diagnostics});
 });
 
 function formatDate(now) {
@@ -317,7 +424,9 @@ app.get('/api/boletim/:edition',async(req,res)=>{
   const edition=Number(req.params.edition);
   if (![1,2,3].includes(edition)) return res.status(400).json({error:'Edição inválida'});
 
-  const items=await fetchModule('judiciario',false);
+  const rawItems=await fetchModule('judiciario',false);
+  const items=await enrichPublishedTimes(rawItems.slice(0,40),40);
+  items.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
   const now=new Date();
   const used=new Set();
   const cutoffHours=edition===1?24:8;
@@ -345,18 +454,25 @@ app.get('/api/boletim/:edition',async(req,res)=>{
 
 app.get('/api/clipping/ministers',async(_,res)=>{
   const items=await fetchModule('stf',false);
-  res.json(MINISTERS.map(m=>({
-    minister:m.name,
-    title:`Clipping - ${m.label}`,
-    items:items.filter(n=>n.tags.includes(m.name)).slice(0,20)
-  })));
+  const result=[];
+  for (const m of MINISTERS) {
+    const ministerItems=items.filter(n=>n.tags.includes(m.name)).slice(0,20);
+    const enriched=await enrichPublishedTimes(ministerItems,20);
+    enriched.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
+    result.push({
+      minister:m.name,
+      title:`Clipping - ${m.label}`,
+      items:enriched
+    });
+  }
+  res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.0',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.1',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.0 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.1 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
