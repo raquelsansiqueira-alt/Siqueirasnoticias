@@ -44,6 +44,7 @@
         <button id="back" class="ghost">← Painel principal</button>
         <div class="toolbar-right">
           <button id="refreshNow" class="outline">Atualizar agora</button>
+          <button id="generateModuleBulletinBtn" class="outline">Gerar boletim das notícias</button>
           <div class="last-update">Última atualização: <strong id="lastUpdate">—</strong></div>
         </div>
       </div>
@@ -73,5 +74,6 @@
   </dialog>
 
   <script src="/app.js"></script>
+<div id="moduleBulletinModal" class="bulletin-modal" hidden><div class="bulletin-dialog"><div class="bulletin-head"><div><h2 id="moduleBulletinTitle">Boletim</h2><p id="moduleBulletinGenerated"></p></div><button id="closeModuleBulletin" class="icon-btn" type="button">×</button></div><textarea id="moduleBulletinText" class="bulletin-text" readonly></textarea><div class="bulletin-actions"><button id="copyModuleBulletin" class="primary" type="button">Copiar boletim</button><button id="closeModuleBulletinBottom" class="outline" type="button">Fechar</button></div></div></div>
 </body>
 </html>

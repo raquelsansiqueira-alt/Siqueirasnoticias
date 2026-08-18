@@ -17,3 +17,10 @@ Start Command: node server.js
 
 ## Diagnóstico
 Abra `/api/status` no fim da URL do Render.
+
+
+## v3.1 — horário original
+O sistema abre a página original da matéria e procura a data/hora publicada em
+`article:published_time`, `datePublished`, `date`, `pubdate` ou `dateCreated`.
+O horário do RSS do Bing só é usado como fallback quando o veículo não fornece
+a data de publicação em metadados acessíveis.
