@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.6)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.7)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -163,7 +163,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.6)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.7)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -274,7 +274,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.6)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.7)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -395,7 +395,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.6',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.7',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -664,19 +664,36 @@ app.get('/api/boletim/:edition',async(req,res)=>{
     return res.json({edition,text,generatedAt:now.toISOString()});
   }
 
-  // 2ª e 3ª edições permanecem com a lógica anterior.
+  // 2ª e 3ª edições: boletins mais robustos, com pelo menos 20 notícias
+  // sempre que houver material suficiente disponível.
   const rawItems=await fetchModule('judiciario',false);
-  const items=await enrichPublishedTimes(rawItems.slice(0,40),40);
+  const items=await enrichPublishedTimes(rawItems.slice(0,80),80);
   items.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
 
   const used=new Set();
-  const recent=items.filter(n=>now-new Date(n.publishedAt)<=8*60*60*1000);
-  const pool=recent.length>=5?recent:items;
+
+  // Primeiro tenta priorizar notícias mais recentes das últimas 12 horas.
+  const recent=items.filter(n=>now-new Date(n.publishedAt)<=12*60*60*1000);
+
+  // Se houver menos de 20 recentes, completa com as demais mais novas.
+  const recentKeys=new Set(recent.map(n=>normalize(`${n.source}|${n.title}`)));
+  const older=items.filter(n=>!recentKeys.has(normalize(`${n.source}|${n.title}`)));
+
+  const pool=[...recent,...older];
 
   text+=`\n*AJUFE, CNJ, STF, MINISTROS DO STF E STJ*\n-\n`;
-  text+=selectDiverse(pool,12,used).map(newsLine).join('\n');
 
-  res.json({edition,text,generatedAt:now.toISOString()});
+  // Meta de 25 matérias, garantindo pelo menos 20 quando disponíveis.
+  const selected=selectDiverse(pool,25,used);
+  text+=selected.map(newsLine).join('\n');
+
+  res.json({
+    edition,
+    text,
+    generatedAt:now.toISOString(),
+    count:selected.length,
+    targetMinimum:20
+  });
 });
 
 app.get('/api/clipping/ministers',async(_,res)=>{
@@ -695,11 +712,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.6',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.7',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.6 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.7 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
