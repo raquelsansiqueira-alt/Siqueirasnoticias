@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.7)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.8)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -86,7 +86,68 @@ const QUERIES = {
   ]
 };
 
-const CACHE_TTL_MS = 3 * 60 * 1000;
+const CACHE_TTL_MS = 30 * 1000;
+
+
+const DIRECT_FEEDS = {
+  stf: [
+    {source:'Agência Brasil', url:'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml'},
+    {source:'Poder360', url:'https://www.poder360.com.br/feed/'},
+    {source:'Migalhas', url:'https://www.migalhas.com.br/rss'},
+    {source:'ConJur', url:'https://www.conjur.com.br/feed/'}
+  ],
+  judiciario: [
+    {source:'Agência Brasil', url:'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml'},
+    {source:'Poder360', url:'https://www.poder360.com.br/feed/'},
+    {source:'Migalhas', url:'https://www.migalhas.com.br/rss'},
+    {source:'ConJur', url:'https://www.conjur.com.br/feed/'}
+  ],
+  saude: [
+    {source:'Agência Brasil', url:'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml'},
+    {source:'Poder360', url:'https://www.poder360.com.br/feed/'}
+  ]
+};
+
+async function loadDirectFeed(feed) {
+  try {
+    const response = await fetch(feed.url, {
+      headers: {
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.8)',
+        'Accept':'application/rss+xml, application/xml, text/xml, */*'
+      }
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return parser.parseString(await response.text());
+  } catch (err) {
+    console.warn(`Feed direto falhou (${feed.source}):`, err.message);
+    return {items:[]};
+  }
+}
+
+function mapDirectItem(item, module, sourceName, idx) {
+  const url = item.link || item.guid;
+  if (!url || !/^https?:\/\//i.test(url)) return null;
+
+  const title = String(item.title || 'Sem título').trim();
+  const summary = String(item.contentSnippet || item.content || item.description || '')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  if (!moduleMatch(module, `${title} ${summary}`)) return null;
+
+  return {
+    id:item.guid || item.id || `direct-${module}-${idx}-${url}`,
+    module,
+    title,
+    source:sourceName,
+    url,
+    publishedAt:item.isoDate || item.pubDate || new Date().toISOString(),
+    summary,
+    tags:classify(`${title} ${summary}`)
+  };
+}
+
 let cache = {stf:[], judiciario:[], saude:[]};
 let cacheAt = {stf:0, judiciario:0, saude:0};
 let refreshing = {stf:null, judiciario:null, saude:null};
@@ -163,7 +224,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.7)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.8)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -274,7 +335,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.7)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.8)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -293,11 +354,15 @@ async function fetchModule(module, force=false) {
   diagnostics[module].error = null;
 
   refreshing[module] = (async()=>{
-    const results = await Promise.allSettled(QUERIES[module].map(loadFeed));
-    const ok = results.filter(r=>r.status==='fulfilled');
-    const failed = results.filter(r=>r.status==='rejected');
+    const [bingResults, directResults] = await Promise.all([
+      Promise.allSettled(QUERIES[module].map(loadFeed)),
+      Promise.all((DIRECT_FEEDS[module] || []).map(loadDirectFeed))
+    ]);
 
-    if (!ok.length) {
+    const ok = bingResults.filter(r=>r.status==='fulfilled');
+    const failed = bingResults.filter(r=>r.status==='rejected');
+
+    if (!ok.length && !(directResults || []).some(r => (r.items || []).length)) {
       throw new Error(failed.map(f=>f.reason?.message || String(f.reason)).join(' | ') || 'Nenhum feed respondeu');
     }
 
@@ -328,8 +393,19 @@ async function fetchModule(module, force=false) {
       };
     }).filter(Boolean).filter(n=>moduleMatch(module, `${n.title} ${n.summary}`));
 
+    const directMapped = [];
+    (DIRECT_FEEDS[module] || []).forEach((feed, feedIndex) => {
+      const parsed = directResults[feedIndex] || {items:[]};
+      (parsed.items || []).slice(0,100).forEach((item, idx) => {
+        const mappedItem = mapDirectItem(item, module, feed.source, idx);
+        if (mappedItem) directMapped.push(mappedItem);
+      });
+    });
+
+    const merged = [...directMapped, ...mapped];
+
     const seen = new Set();
-    const unique = mapped.filter(n=>{
+    const unique = merged.filter(n=>{
       const key = normalize(`${n.source}|${n.title}`);
       if (!key || seen.has(key)) return false;
       seen.add(key);
@@ -395,7 +471,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.7',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.8',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -712,11 +788,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.7',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.8',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.7 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.8 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
