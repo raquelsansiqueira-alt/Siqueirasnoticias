@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.11)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.11.1)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -123,7 +123,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.1)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -312,7 +312,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -425,7 +425,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.1)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -571,16 +571,164 @@ function filterNews(items,q,minister,tag,health) {
 }
 
 
+
 const NEWSPAPER_COVERS = [
-  {id:'folha',name:'Folha de S.Paulo',description:'Edição Folha / capa e edições recentes',url:'https://acervo.folha.uol.com.br/digital/'},
-  {id:'oglobo',name:'O Globo',description:'Jornal Digital O Globo',url:'https://jornaldigital.oglobo.globo.com/'},
-  {id:'valor',name:'Valor Econômico',description:'Edição digital do Valor Econômico',url:'https://valor.globo.com/'},
-  {id:'estadao',name:'Estadão',description:'Portal oficial / edição digital',url:'https://www.estadao.com.br/'}
+  {
+    id:'folha',
+    name:'Folha de S.Paulo',
+    page:'https://www.frontpages.com/folha-de-s-paulo/',
+    official:'https://acervo.folha.uol.com.br/digital/'
+  },
+  {
+    id:'oglobo',
+    name:'O Globo',
+    page:'https://www.frontpages.com/o-globo/',
+    official:'https://jornaldigital.oglobo.globo.com/'
+  },
+  {
+    id:'valor',
+    name:'Valor Econômico',
+    page:'https://www.frontpages.com/valor-economico/',
+    official:'https://valor.globo.com/'
+  },
+  {
+    id:'estadao',
+    name:'Estadão',
+    page:'https://www.frontpages.com/o-estado-de-s-paulo/',
+    official:'https://www.estadao.com.br/'
+  }
 ];
 
-app.get('/api/covers',(req,res)=>{
-  const today=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());
-  res.json({date:today,newspapers:NEWSPAPER_COVERS});
+const coverCache = new Map();
+const COVER_CACHE_MS = 15 * 60 * 1000;
+
+function absoluteUrl(base, value='') {
+  try { return new URL(value, base).href; } catch { return null; }
+}
+
+function extractCoverImage(html, baseUrl) {
+  const candidates = [];
+
+  const metaPatterns = [
+    /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/gi,
+    /<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/gi
+  ];
+
+  for (const pattern of metaPatterns) {
+    let m;
+    while ((m = pattern.exec(html)) !== null) candidates.push(m[1]);
+  }
+
+  // Imagens da capa costumam trazer "Front Page" no alt.
+  const imgPatterns = [
+    /<img[^>]+alt=["'][^"']*Front Page[^"']*["'][^>]+(?:src|data-src)=["']([^"']+)["']/gi,
+    /<img[^>]+(?:src|data-src)=["']([^"']+)["'][^>]+alt=["'][^"']*Front Page[^"']*["']/gi,
+    /<img[^>]+class=["'][^"']*(?:cover|front)[^"']*["'][^>]+(?:src|data-src)=["']([^"']+)["']/gi
+  ];
+
+  for (const pattern of imgPatterns) {
+    let m;
+    while ((m = pattern.exec(html)) !== null) candidates.push(m[1]);
+  }
+
+  for (const raw of candidates) {
+    const url = absoluteUrl(baseUrl, raw.replace(/&amp;/g,'&'));
+    if (!url) continue;
+    if (/logo|icon|avatar|sprite/i.test(url)) continue;
+    if (/\.(?:jpe?g|png|webp)(?:\?|$)/i.test(url) || /front|cover|newspaper/i.test(url)) {
+      return url;
+    }
+  }
+
+  return null;
+}
+
+async function getCoverInfo(newspaper, force=false) {
+  const cached = coverCache.get(newspaper.id);
+  if (!force && cached && Date.now() - cached.at < COVER_CACHE_MS) return cached;
+
+  let imageUrl = null;
+  let error = null;
+
+  try {
+    const response = await fetch(newspaper.page, {
+      redirect:'follow',
+      headers:{
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.1.1)',
+        'Accept':'text/html,application/xhtml+xml'
+      }
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const html = await response.text();
+    imageUrl = extractCoverImage(html, newspaper.page);
+
+    if (!imageUrl) throw new Error('Imagem da capa não localizada');
+  } catch (err) {
+    error = err.message;
+    console.warn(`Capa ${newspaper.name}:`, err.message);
+  }
+
+  const data = {at:Date.now(), imageUrl, error};
+  coverCache.set(newspaper.id, data);
+  return data;
+}
+
+app.get('/api/covers', async (req,res)=>{
+  const today = new Intl.DateTimeFormat('pt-BR',{
+    timeZone:'America/Sao_Paulo',
+    day:'2-digit',
+    month:'2-digit',
+    year:'numeric'
+  }).format(new Date());
+
+  const newspapers = await Promise.all(NEWSPAPER_COVERS.map(async n => {
+    const info = await getCoverInfo(n);
+    return {
+      id:n.id,
+      name:n.name,
+      official:n.official,
+      sourcePage:n.page,
+      available:Boolean(info.imageUrl),
+      image:info.imageUrl ? `/api/cover-image/${n.id}?v=${encodeURIComponent(today)}` : null
+    };
+  }));
+
+  res.json({date:today,newspapers});
+});
+
+app.get('/api/cover-image/:id', async (req,res)=>{
+  const newspaper = NEWSPAPER_COVERS.find(n=>n.id===req.params.id);
+  if (!newspaper) return res.status(404).end();
+
+  const info = await getCoverInfo(newspaper);
+  if (!info.imageUrl) return res.status(404).end();
+
+  try {
+    const response = await fetch(info.imageUrl, {
+      redirect:'follow',
+      headers:{
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.1.1)',
+        'Referer':newspaper.page,
+        'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+      }
+    });
+
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const bytes = Buffer.from(await response.arrayBuffer());
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control','public, max-age=900');
+    res.send(bytes);
+  } catch (err) {
+    console.warn(`Proxy capa ${newspaper.name}:`,err.message);
+    res.status(502).end();
+  }
 });
 
 app.get('/api/config',(_,res)=>{
@@ -607,7 +755,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.11',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.11.1',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -924,11 +1072,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.11',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.11.1',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.11 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.11.1 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });

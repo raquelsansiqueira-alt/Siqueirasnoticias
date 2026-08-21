@@ -226,7 +226,18 @@ async function loadCovers(){
   try{
     const res=await fetch('/api/covers'),data=await res.json();
     coversDate.textContent=`Edições de ${data.date}`;
-    coversGrid.innerHTML=data.newspapers.map(n=>`<article class="cover-card"><div><div class="cover-paper">${escapeHtml(n.name)}</div><h3>${escapeHtml(n.name)}</h3><p>${escapeHtml(n.description)}</p></div><a class="cover-open" href="${escapeHtml(n.url)}" target="_blank" rel="noopener noreferrer">Abrir edição oficial</a></article>`).join('');
+    coversGrid.innerHTML=data.newspapers.map(n=>`
+      <article class="cover-card">
+        <div>
+          <div class="cover-image-wrap">
+            ${n.image
+              ? `<img class="cover-image" src="${escapeHtml(n.image)}" alt="Capa de ${escapeHtml(n.name)} em ${escapeHtml(data.date)}" loading="lazy">`
+              : `<div class="cover-unavailable">Capa indisponível no momento</div>`}
+          </div>
+          <h3>${escapeHtml(n.name)}</h3>
+        </div>
+        <a class="cover-open" href="${escapeHtml(n.official)}" target="_blank" rel="noopener noreferrer">Abrir edição oficial</a>
+      </article>`).join('');
   }catch(e){coversGrid.innerHTML='<div class="empty">Não foi possível carregar agora.</div>'}
 }
 if(openCovers)openCovers.addEventListener('click',()=>{home.classList.add('hidden');panel.classList.add('hidden');coversPanel.classList.remove('hidden');loadCovers()});

@@ -7,7 +7,15 @@
   <link rel="stylesheet" href="/style.css" />
 <style>
 .covers-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-top:20px}.cover-card{background:#fff;border:1px solid #ddd;border-radius:18px;padding:22px;min-height:250px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 8px 24px rgba(0,0,0,.05)}.cover-paper{min-height:130px;border:1px solid #ddd;border-radius:10px;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;background:#f7f7f7;font-size:1.35rem;font-weight:800}.cover-card h3{margin:16px 0 6px}.cover-card p{margin:0 0 16px;opacity:.75}.cover-open{display:inline-flex;justify-content:center;text-decoration:none;padding:10px 14px;border-radius:10px;background:#111;color:#fff;font-weight:700}.covers-note{margin-top:18px;opacity:.7;font-size:.9rem}
-</style></head>
+</style>
+<style>
+.cover-image-wrap{background:#f4f4f4;border:1px solid #ddd;border-radius:10px;overflow:hidden;aspect-ratio:0.72;display:flex;align-items:center;justify-content:center}
+.cover-image{width:100%;height:100%;object-fit:contain;background:#fff}
+.cover-unavailable{padding:24px;text-align:center;opacity:.65}
+.covers-module{display:flex;align-items:center;justify-content:center;text-align:center}
+.covers-module strong{font-size:1.05rem}
+</style>
+</head>
 <body>
   <header class="topbar">
     <div>
@@ -39,10 +47,7 @@
         <h3>Fontes monitoradas</h3>
         <p id="sourcesText">Carregando fontes...</p>
       
-      <button class="module-card covers-module" id="openCovers" type="button">
-        <span class="module-icon">▤</span>
-        <span><strong>Capas de Jornais</strong><small>Folha, O Globo, Valor e Estadão</small></span>
-      </button>
+      <button class="module-card covers-module" id="openCovers" type="button"><strong>capa de jornais</strong></button>
 </section>
     </section>
 
@@ -74,7 +79,7 @@
     </section>
   
     <section id="coversPanel" class="hidden">
-      <div class="panel-head"><div><h2>Capas de Jornais</h2><p id="coversDate">Edições do dia</p></div><button id="backFromCovers" class="filter" type="button">Voltar</button></div>
+      <div class="panel-head"><div><h2>capa de jornais</h2><p id="coversDate">Edições do dia</p></div><button id="backFromCovers" class="filter" type="button">Voltar</button></div>
       <div id="coversGrid" class="covers-grid"></div>
       <p class="covers-note">Quando a capa completa exigir assinatura, o botão abre o ambiente oficial do próprio jornal.</p>
     </section>
