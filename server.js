@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.9.2)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.9.3)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -118,7 +118,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.9.2)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.9.3)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -194,18 +194,37 @@ function brasiliaIsoFromLocalDate(value='') {
 }
 
 function extractAgenciaBrasilPublishedTime(html='') {
-  const candidates = [];
+  // Para a Agência Brasil, prioriza o horário que aparece VISIVELMENTE na matéria.
+  // Exemplo: "Publicado em 21/08/2026 - 16:16".
+  const plainText = decodeHtmlEntities(
+    String(html)
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+  ).trim();
 
+  const visible = plainText.match(
+    /Publicado\s+em\s+(\d{2}\/\d{2}\/\d{4})\s*-\s*(\d{2}):(\d{2})(?::(\d{2}))?/i
+  );
+
+  if (visible) {
+    const [, datePart, hour, minute, second='00'] = visible;
+    const [day, month, year] = datePart.split('/');
+    const isoBrasilia = `${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`;
+    const d = new Date(isoBrasilia);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+
+  // Fallback: tenta padrões estruturados somente se o texto visível não estiver disponível.
+  const candidates = [];
   const patterns = [
     /<meta[^>]+property=["']article:published_time["'][^>]+content=["']([^"']+)["']/gi,
     /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']article:published_time["']/gi,
     /<meta[^>]+itemprop=["']datePublished["'][^>]+content=["']([^"']+)["']/gi,
     /<meta[^>]+content=["']([^"']+)["'][^>]+itemprop=["']datePublished["']/gi,
     /"datePublished"\s*:\s*"([^"]+)"/gi,
-    /"dateCreated"\s*:\s*"([^"]+)"/gi,
-    /Publicado\s+em\s+(\d{2}\/\d{2}\/\d{4}\s*-\s*\d{2}:\d{2}(?::\d{2})?)/gi,
-    /(\d{2}\/\d{2}\/\d{4}\s+(?:às|as)\s+\d{2}:\d{2}(?::\d{2})?)/gi,
-    /(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}(?::\d{2})?)/gi
+    /"dateCreated"\s*:\s*"([^"]+)"/gi
   ];
 
   for (const pattern of patterns) {
@@ -226,13 +245,11 @@ function extractAgenciaBrasilPublishedTime(html='') {
       const d = new Date(local);
       if (!Number.isNaN(d.getTime())) return d.toISOString();
     }
-
-    const d = new Date(raw);
-    if (!Number.isNaN(d.getTime())) return d.toISOString();
   }
 
   return null;
 }
+
 
 function firstValidDate(values) {
   for (const value of values) {
@@ -290,7 +307,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.9.2)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.9.3)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -403,7 +420,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.9.2)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.9.3)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -572,7 +589,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.9.2',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.9.3',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -889,11 +906,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.9.2',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.9.3',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.9.2 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.9.3 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
