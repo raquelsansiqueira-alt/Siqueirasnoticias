@@ -247,6 +247,7 @@ if(openCovers)openCovers.addEventListener('click',()=>{
   coversPanel.classList.add('active');
   loadCovers();
 });
+
 if(backFromCovers)backFromCovers.addEventListener('click',()=>{
   coversPanel.classList.remove('active');
   panel.classList.remove('active');
