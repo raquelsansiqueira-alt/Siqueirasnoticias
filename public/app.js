@@ -227,7 +227,7 @@ async function loadCovers(){
     const res=await fetch('/api/covers'),data=await res.json();
     coversDate.textContent=`Edições de ${data.date}`;
     coversGrid.innerHTML=data.newspapers.map(n=>`
-      <article class="cover-card">
+      <article class="cover-card cover-clickable" data-cover-url="${escapeHtml(n.official)}" tabindex="0" role="link">
         <div>
           <div class="cover-image-wrap">
             ${n.image
@@ -236,7 +236,7 @@ async function loadCovers(){
           </div>
           <h3>${escapeHtml(n.name)}</h3>
         </div>
-        <a class="cover-open" href="${escapeHtml(n.official)}" target="_blank" rel="noopener noreferrer">Abrir edição oficial</a>
+        <button class="cover-open" type="button" data-cover-url="${escapeHtml(n.official)}">Abrir edição oficial</button>
       </article>`).join('');
   }catch(e){coversGrid.innerHTML='<div class="empty">Não foi possível carregar agora.</div>'}
 }
@@ -252,4 +252,21 @@ if(backFromCovers)backFromCovers.addEventListener('click',()=>{
   coversPanel.classList.remove('active');
   panel.classList.remove('active');
   home.classList.add('active');
+});
+
+
+coversGrid?.addEventListener('click', e=>{
+  const target = e.target.closest('[data-cover-url]');
+  if(!target) return;
+  const url = target.dataset.coverUrl;
+  if(url) window.location.assign(url);
+});
+
+coversGrid?.addEventListener('keydown', e=>{
+  if(e.key !== 'Enter' && e.key !== ' ') return;
+  const target = e.target.closest('[data-cover-url]');
+  if(!target) return;
+  e.preventDefault();
+  const url = target.dataset.coverUrl;
+  if(url) window.location.assign(url);
 });
