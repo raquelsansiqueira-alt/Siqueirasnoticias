@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.8)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.9)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -79,10 +79,16 @@ const QUERIES = {
   ],
   saude: [
     'saúde OR SUS OR Anvisa',
-    '"Ministério da Saúde" OR "plano de saúde" OR "planos de saúde"',
-    'OMS OR "Organização Mundial da Saúde" OR hospital OR hospitais',
-    '"Rede D\'Or" OR "rede hospitalar"',
-    '"Instituto Coalizão Saúde" OR "Instituto Consenso"'
+    '"Ministério da Saúde" OR "plano de saúde" OR "planos de saúde" OR ANS',
+    'OMS OR "Organização Mundial da Saúde" OR hospital OR hospitais OR "rede hospitalar"',
+    '"Rede D\'Or" OR Hapvida OR "Instituto Consenso"',
+    'semaglutida OR Ozempic OR Wegovy OR tirzepatida OR Mounjaro',
+    'autismo OR TEA OR "transtorno do espectro autista"',
+    'câncer OR oncologia OR tumor',
+    '"canetas emagrecedoras" OR "caneta emagrecedora"',
+    'Ebola OR sarampo OR "doenças transmissíveis"',
+    'pandemia OR pandêmica OR pandêmico OR coronavírus OR covid OR "covid-19" OR "SARS-CoV-2"',
+    'gripe OR influenza OR H1N1 OR medicina'
   ]
 };
 
@@ -112,7 +118,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.8)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.9)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -224,7 +230,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.8)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.9)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -302,7 +308,7 @@ function classify(text='') {
   if (/\bcnj\b|conselho nacional de justica/.test(n)) tags.push('CNJ');
   if (/\bstj\b|superior tribunal de justica/.test(n)) tags.push('STJ');
   if (/\bajufe\b|associacao dos juizes federais/.test(n)) tags.push('Ajufe');
-  if (/saude|sus|anvisa|\boms\b|hospital|plano de saude|ministerio da saude|rede d.?or/.test(n)) tags.push('Saúde');
+  if (/saude|sus|anvisa|\boms\b|hospital|plano de saude|ministerio da saude|rede d.?or|hapvida|\bans\b|semaglutida|ozempic|wegovy|tirzepatida|mounjaro|autismo|\btea\b|cancer|oncologia|tumor|ebola|sarampo|doencas? transmissiveis?|pandemi|coronavirus|covid|sars-cov-2|gripe|influenza|h1n1|medicina/.test(n)) tags.push('Saúde');
   MINISTERS.forEach(m=>{
     if (m.terms.some(t=>n.includes(normalize(t)))) tags.push(m.name);
   });
@@ -319,7 +325,7 @@ function moduleMatch(module, text='') {
     return /\bajufe\b|associacao dos juizes federais|justica federal|\bstf\b|supremo tribunal federal|\bcnj\b|conselho nacional de justica|\bstj\b|superior tribunal de justica/.test(n) ||
       MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t))));
   }
-  return /saude|sus|anvisa|\boms\b|organizacao mundial da saude|ministerio da saude|plano de saude|saude suplementar|rede hospitalar|hospital|rede d.?or|instituto coalizao saude|instituto consenso/.test(n);
+  return /saude|sus|anvisa|\boms\b|organizacao mundial da saude|ministerio da saude|plano de saude|saude suplementar|rede hospitalar|hospital|rede d.?or|instituto coalizao saude|instituto consenso|hapvida|\bans\b|agencia nacional de saude suplementar|semaglutida|ozempic|wegovy|tirzepatida|mounjaro|autismo|\btea\b|transtorno do espectro autista|cancer|oncologia|tumor|canetas? emagrecedoras?|ebola|sarampo|doencas? transmissiveis?|pandemi|coronavirus|covid|sars-cov-2|gripe|influenza|h1n1|medicina/.test(n);
 }
 
 function feedUrl(query) {
@@ -335,7 +341,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.8)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.9)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -437,7 +443,38 @@ async function fetchModule(module, force=false) {
   return refreshing[module];
 }
 
-function filterNews(items,q,minister,tag) {
+
+const HEALTH_FILTERS = {
+  'Hapvida':['hapvida'],
+  'Semaglutida':['semaglutida','ozempic','wegovy'],
+  'Autismo':['autismo','tea','transtorno do espectro autista'],
+  'ANS':['ans','agencia nacional de saude suplementar'],
+  'Câncer':['cancer','oncologia','tumor'],
+  'Canetas Emagrecedoras':['caneta emagrecedora','canetas emagrecedoras','semaglutida','ozempic','wegovy','tirzepatida','mounjaro'],
+  'Ebola':['ebola'],
+  'Sarampo':['sarampo'],
+  'Doenças Transmissíveis':['doenca transmissivel','doencas transmissiveis'],
+  'Pandemias':['pandemia','pandemica','pandemico'],
+  'Covid-19':['covid','covid-19','coronavirus','sars-cov-2'],
+  'Gripe':['gripe','influenza','h1n1'],
+  'Medicina':['medicina'],
+  'Ministério da Saúde':['ministerio da saude'],
+  'SUS':['sus','sistema unico de saude'],
+  'Anvisa':['anvisa','agencia nacional de vigilancia sanitaria'],
+  'Planos de Saúde':['plano de saude','planos de saude','saude suplementar'],
+  'OMS':['oms','organizacao mundial da saude'],
+  'Rede Hospitalar':['hospital','hospitais','rede hospitalar'],
+  'Rede D’Or':['rede d or','rede dor'],
+  'Instituto Consenso':['instituto consenso']
+};
+
+function matchHealthFilter(item, filterName) {
+  if (!filterName || !HEALTH_FILTERS[filterName]) return true;
+  const hay = normalize(`${item.title} ${item.source} ${item.summary || ''}`);
+  return HEALTH_FILTERS[filterName].some(term => hay.includes(normalize(term)));
+}
+
+function filterNews(items,q,minister,tag,health) {
   let out = items;
   if (q) {
     const term = normalize(q);
@@ -445,20 +482,22 @@ function filterNews(items,q,minister,tag) {
   }
   if (minister) out = out.filter(n=>n.tags.some(t=>normalize(t)===normalize(minister)));
   if (tag) out = out.filter(n=>n.tags.some(t=>normalize(t)===normalize(tag)));
+  if (health) out = out.filter(n=>matchHealthFilter(n,health));
   return out;
 }
 
 app.get('/api/config',(_,res)=>{
   res.json({
     sources:SOURCES.map(s=>s.name),
-    ministers:MINISTERS.map(m=>({name:m.name,label:m.label}))
+    ministers:MINISTERS.map(m=>({name:m.name,label:m.label})),
+    healthFilters:Object.keys(HEALTH_FILTERS)
   });
 });
 
 app.get('/api/news',async(req,res)=>{
   const module = ['stf','judiciario','saude'].includes(req.query.module) ? req.query.module : 'stf';
   const items = await fetchModule(module,false);
-  const filtered = filterNews(items,req.query.q,req.query.minister,req.query.tag).slice(0,40);
+  const filtered = filterNews(items,req.query.q,req.query.minister,req.query.tag,req.query.health).slice(0,40);
   const enriched = await enrichPublishedTimes(filtered,40);
   enriched.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
   res.json(enriched);
@@ -471,7 +510,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.8',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.9',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -788,11 +827,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.8',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.9',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.8 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.9 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });

@@ -10,8 +10,9 @@ const loading = document.querySelector('#loading');
 
 let currentModule = null;
 let currentMinister = '';
+let currentHealthFilter = '';
 let refreshTimer = null;
-let config = {sources:[], ministers:[]};
+let config = {sources:[], ministers:[], healthFilters:[]};
 
 const labels = {
   stf: ['STF • CNJ • Ministros', 'Monitoramento em atualização contínua'],
@@ -37,22 +38,61 @@ async function loadConfig(){
   config = await res.json();
   document.querySelector('#sourcesText').textContent = config.sources.join(', ') + '.';
 
-  ministerFilters.innerHTML = `
-    <button class="filter active" data-minister="">Todos</button>
-    <button class="filter" data-tag="STF">STF</button>
-    <button class="filter" data-tag="CNJ">CNJ</button>
-    ${config.ministers.map(m=>`<button class="filter" data-minister="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`).join('')}
-  `;
   ministerFilters.addEventListener('click', e=>{
     const btn = e.target.closest('.filter');
     if(!btn) return;
+
     ministerFilters.querySelectorAll('.filter').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    currentMinister = btn.dataset.minister || '';
-    ministerFilters.dataset.tag = btn.dataset.tag || '';
+
+    if(currentModule === 'saude'){
+      currentHealthFilter = btn.dataset.health || '';
+      currentMinister = '';
+      ministerFilters.dataset.tag = '';
+    }else{
+      currentHealthFilter = '';
+      currentMinister = btn.dataset.minister || '';
+      ministerFilters.dataset.tag = btn.dataset.tag || '';
+    }
     loadNews();
   });
+
+  renderModuleFilters();
 }
+
+function renderModuleFilters(){
+  if(currentModule === 'stf'){
+    ministerFilters.innerHTML = `
+      <button class="filter active" data-minister="">Todos</button>
+      <button class="filter" data-tag="STF">STF</button>
+      <button class="filter" data-tag="CNJ">CNJ</button>
+      ${config.ministers.map(m=>`<button class="filter" data-minister="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`).join('')}
+    `;
+    ministerFilters.classList.remove('hidden');
+    currentMinister = '';
+    currentHealthFilter = '';
+    ministerFilters.dataset.tag = '';
+    return;
+  }
+
+  if(currentModule === 'saude'){
+    ministerFilters.innerHTML = `
+      <button class="filter active" data-health="">Todos</button>
+      ${(config.healthFilters || []).map(name=>`<button class="filter" data-health="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join('')}
+    `;
+    ministerFilters.classList.remove('hidden');
+    currentMinister = '';
+    currentHealthFilter = '';
+    ministerFilters.dataset.tag = '';
+    return;
+  }
+
+  ministerFilters.classList.add('hidden');
+  currentMinister = '';
+  currentHealthFilter = '';
+  ministerFilters.dataset.tag = '';
+}
+
 
 async function loadNews(){
   if(!currentModule) return;
@@ -61,7 +101,8 @@ async function loadNews(){
     const q = encodeURIComponent(search.value.trim());
     const minister = encodeURIComponent(currentMinister);
     const tag = encodeURIComponent(ministerFilters.dataset.tag || '');
-    const res = await fetch(`/api/news?module=${currentModule}&q=${q}&minister=${minister}&tag=${tag}`);
+    const health = encodeURIComponent(currentHealthFilter || '');
+    const res = await fetch(`/api/news?module=${currentModule}&q=${q}&minister=${minister}&tag=${tag}&health=${health}`);
     const items = await res.json();
     document.querySelector('#lastUpdate').textContent =
       new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium',timeZone:'America/Sao_Paulo'}).format(new Date());
@@ -125,15 +166,14 @@ list.addEventListener('click', async e=>{
 document.querySelectorAll('[data-open]').forEach(btn => btn.addEventListener('click',()=>{
   currentModule = btn.dataset.open;
   currentMinister = '';
-  setTimeout(updateModuleBulletinButton, 0);
+  currentHealthFilter = '';
   ministerFilters.dataset.tag = '';
-  ministerFilters.querySelectorAll('.filter').forEach((b,i)=>b.classList.toggle('active',i===0));
+  renderModuleFilters();
   home.classList.remove('active');
   panel.classList.add('active');
   document.querySelector('#panelTitle').textContent = labels[currentModule][0];
   document.querySelector('#panelEyebrow').textContent = labels[currentModule][1];
   boletimControls.classList.toggle('hidden', currentModule !== 'judiciario');
-  ministerFilters.classList.toggle('hidden', currentModule !== 'stf');
   search.value='';
   loadNews();
   clearInterval(refreshTimer);
@@ -190,117 +230,32 @@ document.querySelector('#copyBoletim').addEventListener('click',async()=>{
 
 loadConfig();
 
-
-const generateModuleBulletinBtn = document.getElementById('generateModuleBulletinBtn');
-const moduleBulletinModal = document.getElementById('moduleBulletinModal');
-const moduleBulletinText = document.getElementById('moduleBulletinText');
-const moduleBulletinTitle = document.getElementById('moduleBulletinTitle');
-const moduleBulletinGenerated = document.getElementById('moduleBulletinGenerated');
-
-function updateModuleBulletinButton(){
-  if(!generateModuleBulletinBtn) return;
-  generateModuleBulletinBtn.hidden = !(currentModule === 'stf' || currentModule === 'saude');
-}
-
-function bulletinDate(d){
-  const weekday = new Intl.DateTimeFormat('pt-BR',{
-    weekday:'long',
-    timeZone:'America/Sao_Paulo'
-  }).format(d);
-
-  const date = new Intl.DateTimeFormat('pt-BR',{
-    day:'2-digit',
-    month:'long',
-    year:'numeric',
-    timeZone:'America/Sao_Paulo'
-  }).format(d);
-
-  return `${weekday.charAt(0).toUpperCase()+weekday.slice(1)}, ${date}`;
-}
-
+const generateModuleBulletinBtn=document.getElementById('generateModuleBulletinBtn');
+const moduleBulletinModal=document.getElementById('moduleBulletinModal');
+const moduleBulletinText=document.getElementById('moduleBulletinText');
+const moduleBulletinTitle=document.getElementById('moduleBulletinTitle');
+const moduleBulletinGenerated=document.getElementById('moduleBulletinGenerated');
+function updateModuleBulletinButton(){if(generateModuleBulletinBtn)generateModuleBulletinBtn.hidden=!(state.module==='stf'||state.module==='saude');}
+function bulletinDate(d){let w=new Intl.DateTimeFormat('pt-BR',{weekday:'long'}).format(d);let x=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'long',year:'numeric'}).format(d);return w.charAt(0).toUpperCase()+w.slice(1)+', '+x;}
 async function generateModuleBulletin(){
-  const module = currentModule;
-  if(!(module === 'stf' || module === 'saude')) return;
-
-  generateModuleBulletinBtn.disabled = true;
-  const oldLabel = generateModuleBulletinBtn.textContent;
-  generateModuleBulletinBtn.textContent = 'Gerando...';
-
-  try{
-    const params = new URLSearchParams({module});
-
-    const q = search.value.trim();
-    const minister = currentMinister;
-    const tag = ministerFilters.dataset.tag || '';
-
-    if(q) params.set('q', q);
-    if(minister) params.set('minister', minister);
-    if(tag) params.set('tag', tag);
-
-    const response = await fetch(`/api/news?${params.toString()}`);
-    if(!response.ok) throw new Error('Não foi possível carregar as notícias.');
-
-    const items = await response.json();
-    const now = new Date();
-    const label = module === 'saude' ? 'SAÚDE' : 'STF';
-
-    if(moduleBulletinTitle) moduleBulletinTitle.textContent = `Boletim ${label}`;
-    if(moduleBulletinGenerated) moduleBulletinGenerated.textContent =
-      `Gerado às ${new Intl.DateTimeFormat('pt-BR',{
-        hour:'2-digit',
-        minute:'2-digit',
-        timeZone:'America/Sao_Paulo'
-      }).format(now)}`;
-
-    const lines = [
-      `*BOLETIM ${label}*`,
-      `_${bulletinDate(now)}_`,
-      '-'
-    ];
-
-    if(!Array.isArray(items) || !items.length){
-      lines.push('Nenhuma notícia disponível com os filtros atuais.');
-    }else{
-      items.forEach(n=>{
-        lines.push(`*${n.source}* - ${n.title}`);
-        lines.push(n.url);
-        lines.push('-');
-      });
-    }
-
-    if(!moduleBulletinText || !moduleBulletinModal){
-      throw new Error('A interface do boletim ainda não foi carregada. Atualize também o index.html.');
-    }
-    moduleBulletinText.value = lines.join('\n');
-    moduleBulletinModal.hidden = false;
-
-  }catch(err){
-    alert(err.message || 'Não foi possível gerar o boletim.');
-  }finally{
-    generateModuleBulletinBtn.disabled = false;
-    generateModuleBulletinBtn.textContent = oldLabel;
-  }
+ const module=state.module;if(!(module==='stf'||module==='saude'))return;
+ generateModuleBulletinBtn.disabled=true;let old=generateModuleBulletinBtn.textContent;generateModuleBulletinBtn.textContent='Gerando...';
+ try{
+  const p=new URLSearchParams({module}); if(state.q)p.set('q',state.q); if(state.minister)p.set('minister',state.minister); if(state.tag)p.set('tag',state.tag);
+  const r=await fetch('/api/news?'+p.toString()); if(!r.ok)throw new Error('Não foi possível carregar as notícias.');
+  const items=await r.json(), now=new Date(), label=module==='saude'?'SAÚDE':'STF';
+  moduleBulletinTitle.textContent='Boletim '+label; moduleBulletinGenerated.textContent='Gerado às '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  let lines=['*BOLETIM '+label+'*','_'+bulletinDate(now)+'_','-'];
+  if(!items.length)lines.push('Nenhuma notícia disponível com os filtros atuais.');
+  items.forEach(n=>{lines.push('*'+n.source+'* - '+n.title);lines.push(n.url);lines.push('-');});
+  moduleBulletinText.value=lines.join('\n');moduleBulletinModal.hidden=false;
+ }catch(e){alert(e.message||'Não foi possível gerar o boletim.');}
+ finally{generateModuleBulletinBtn.disabled=false;generateModuleBulletinBtn.textContent=old;}
 }
-
-generateModuleBulletinBtn?.addEventListener('click', generateModuleBulletin);
-
-function closeModuleBulletinModal(){
-  if(moduleBulletinModal) moduleBulletinModal.hidden = true;
-}
-
-document.getElementById('closeModuleBulletin')?.addEventListener('click', closeModuleBulletinModal);
-document.getElementById('closeModuleBulletinBottom')?.addEventListener('click', closeModuleBulletinModal);
-
-moduleBulletinModal?.addEventListener('click', e=>{
-  if(e.target === moduleBulletinModal) closeModuleBulletinModal();
-});
-
-document.getElementById('copyModuleBulletin')?.addEventListener('click', async e=>{
-  if(!moduleBulletinText.value) return;
-  await navigator.clipboard.writeText(moduleBulletinText.value);
-  const old = e.target.textContent;
-  e.target.textContent = 'Copiado!';
-  setTimeout(()=>e.target.textContent = old, 1200);
-});
-
+generateModuleBulletinBtn?.addEventListener('click',generateModuleBulletin);
+function closeMB(){moduleBulletinModal.hidden=true}
+document.getElementById('closeModuleBulletin')?.addEventListener('click',closeMB);
+document.getElementById('closeModuleBulletinBottom')?.addEventListener('click',closeMB);
+moduleBulletinModal?.addEventListener('click',e=>{if(e.target===moduleBulletinModal)closeMB()});
+document.getElementById('copyModuleBulletin')?.addEventListener('click',async e=>{await navigator.clipboard.writeText(moduleBulletinText.value);let o=e.target.textContent;e.target.textContent='Copiado!';setTimeout(()=>e.target.textContent=o,1200)});
 updateModuleBulletinButton();
