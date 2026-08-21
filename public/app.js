@@ -240,5 +240,15 @@ async function loadCovers(){
       </article>`).join('');
   }catch(e){coversGrid.innerHTML='<div class="empty">Não foi possível carregar agora.</div>'}
 }
-if(openCovers)openCovers.addEventListener('click',()=>{home.classList.add('hidden');panel.classList.add('hidden');coversPanel.classList.remove('hidden');loadCovers()});
-if(backFromCovers)backFromCovers.addEventListener('click',()=>{coversPanel.classList.add('hidden');home.classList.remove('hidden')});
+if(openCovers)openCovers.addEventListener('click',()=>{
+  clearInterval(refreshTimer);
+  panel.classList.remove('active');
+  home.classList.remove('active');
+  coversPanel.classList.add('active');
+  loadCovers();
+});
+if(backFromCovers)backFromCovers.addEventListener('click',()=>{
+  coversPanel.classList.remove('active');
+  panel.classList.remove('active');
+  home.classList.add('active');
+});

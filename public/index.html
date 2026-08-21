@@ -30,7 +30,7 @@
     <section id="home" class="view active">
       <div class="cards">
         <button class="module-card" data-open="stf">
-          <div class="icon">⚖️</div><h2>STF</h2>
+          <div class="icon">⚖️<button class="module-card covers-module" id="openCovers" type="button"><strong>capa de jornais</strong></button></div><h2>STF</h2>
           <p>STF • CNJ • Ministros</p><span>Atualização contínua</span>
         </button>
         <button class="module-card" data-open="judiciario">
@@ -47,7 +47,7 @@
         <h3>Fontes monitoradas</h3>
         <p id="sourcesText">Carregando fontes...</p>
       
-      <button class="module-card covers-module" id="openCovers" type="button"><strong>capa de jornais</strong></button>
+      
 </section>
     </section>
 
@@ -78,7 +78,7 @@
       <div id="newsList" class="news-list"></div>
     </section>
   
-    <section id="coversPanel" class="hidden">
+    <section id="coversPanel" class="view">
       <div class="panel-head"><div><h2>capa de jornais</h2><p id="coversDate">Edições do dia</p></div><button id="backFromCovers" class="filter" type="button">Voltar</button></div>
       <div id="coversGrid" class="covers-grid"></div>
       <p class="covers-note">Quando a capa completa exigir assinatura, o botão abre o ambiente oficial do próprio jornal.</p>
