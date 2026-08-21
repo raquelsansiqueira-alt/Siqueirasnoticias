@@ -10,9 +10,8 @@ const loading = document.querySelector('#loading');
 
 let currentModule = null;
 let currentMinister = '';
-let currentHealthFilter = '';
 let refreshTimer = null;
-let config = {sources:[], ministers:[], healthFilters:[]};
+let config = {sources:[], ministers:[]};
 
 const labels = {
   stf: ['STF • CNJ • Ministros', 'Monitoramento em atualização contínua'],
@@ -38,61 +37,22 @@ async function loadConfig(){
   config = await res.json();
   document.querySelector('#sourcesText').textContent = config.sources.join(', ') + '.';
 
+  ministerFilters.innerHTML = `
+    <button class="filter active" data-minister="">Todos</button>
+    <button class="filter" data-tag="STF">STF</button>
+    <button class="filter" data-tag="CNJ">CNJ</button>
+    ${config.ministers.map(m=>`<button class="filter" data-minister="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`).join('')}
+  `;
   ministerFilters.addEventListener('click', e=>{
     const btn = e.target.closest('.filter');
     if(!btn) return;
-
     ministerFilters.querySelectorAll('.filter').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-
-    if(currentModule === 'saude'){
-      currentHealthFilter = btn.dataset.health || '';
-      currentMinister = '';
-      ministerFilters.dataset.tag = '';
-    }else{
-      currentHealthFilter = '';
-      currentMinister = btn.dataset.minister || '';
-      ministerFilters.dataset.tag = btn.dataset.tag || '';
-    }
+    currentMinister = btn.dataset.minister || '';
+    ministerFilters.dataset.tag = btn.dataset.tag || '';
     loadNews();
   });
-
-  renderModuleFilters();
 }
-
-function renderModuleFilters(){
-  if(currentModule === 'stf'){
-    ministerFilters.innerHTML = `
-      <button class="filter active" data-minister="">Todos</button>
-      <button class="filter" data-tag="STF">STF</button>
-      <button class="filter" data-tag="CNJ">CNJ</button>
-      ${config.ministers.map(m=>`<button class="filter" data-minister="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`).join('')}
-    `;
-    ministerFilters.classList.remove('hidden');
-    currentMinister = '';
-    currentHealthFilter = '';
-    ministerFilters.dataset.tag = '';
-    return;
-  }
-
-  if(currentModule === 'saude'){
-    ministerFilters.innerHTML = `
-      <button class="filter active" data-health="">Todos</button>
-      ${(config.healthFilters || []).map(name=>`<button class="filter" data-health="${escapeHtml(name)}">${escapeHtml(name)}</button>`).join('')}
-    `;
-    ministerFilters.classList.remove('hidden');
-    currentMinister = '';
-    currentHealthFilter = '';
-    ministerFilters.dataset.tag = '';
-    return;
-  }
-
-  ministerFilters.classList.add('hidden');
-  currentMinister = '';
-  currentHealthFilter = '';
-  ministerFilters.dataset.tag = '';
-}
-
 
 async function loadNews(){
   if(!currentModule) return;
@@ -101,8 +61,7 @@ async function loadNews(){
     const q = encodeURIComponent(search.value.trim());
     const minister = encodeURIComponent(currentMinister);
     const tag = encodeURIComponent(ministerFilters.dataset.tag || '');
-    const health = encodeURIComponent(currentHealthFilter || '');
-    const res = await fetch(`/api/news?module=${currentModule}&q=${q}&minister=${minister}&tag=${tag}&health=${health}`);
+    const res = await fetch(`/api/news?module=${currentModule}&q=${q}&minister=${minister}&tag=${tag}`);
     const items = await res.json();
     document.querySelector('#lastUpdate').textContent =
       new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium',timeZone:'America/Sao_Paulo'}).format(new Date());
@@ -166,14 +125,14 @@ list.addEventListener('click', async e=>{
 document.querySelectorAll('[data-open]').forEach(btn => btn.addEventListener('click',()=>{
   currentModule = btn.dataset.open;
   currentMinister = '';
-  currentHealthFilter = '';
   ministerFilters.dataset.tag = '';
-  renderModuleFilters();
+  ministerFilters.querySelectorAll('.filter').forEach((b,i)=>b.classList.toggle('active',i===0));
   home.classList.remove('active');
   panel.classList.add('active');
   document.querySelector('#panelTitle').textContent = labels[currentModule][0];
   document.querySelector('#panelEyebrow').textContent = labels[currentModule][1];
   boletimControls.classList.toggle('hidden', currentModule !== 'judiciario');
+  ministerFilters.classList.toggle('hidden', currentModule !== 'stf');
   search.value='';
   loadNews();
   clearInterval(refreshTimer);
@@ -259,3 +218,16 @@ document.getElementById('closeModuleBulletinBottom')?.addEventListener('click',c
 moduleBulletinModal?.addEventListener('click',e=>{if(e.target===moduleBulletinModal)closeMB()});
 document.getElementById('copyModuleBulletin')?.addEventListener('click',async e=>{await navigator.clipboard.writeText(moduleBulletinText.value);let o=e.target.textContent;e.target.textContent='Copiado!';setTimeout(()=>e.target.textContent=o,1200)});
 updateModuleBulletinButton();
+
+
+const coversPanel=document.querySelector('#coversPanel'),openCovers=document.querySelector('#openCovers'),backFromCovers=document.querySelector('#backFromCovers'),coversGrid=document.querySelector('#coversGrid'),coversDate=document.querySelector('#coversDate');
+async function loadCovers(){
+  coversGrid.innerHTML='<div class="empty">Carregando...</div>';
+  try{
+    const res=await fetch('/api/covers'),data=await res.json();
+    coversDate.textContent=`Edições de ${data.date}`;
+    coversGrid.innerHTML=data.newspapers.map(n=>`<article class="cover-card"><div><div class="cover-paper">${escapeHtml(n.name)}</div><h3>${escapeHtml(n.name)}</h3><p>${escapeHtml(n.description)}</p></div><a class="cover-open" href="${escapeHtml(n.url)}" target="_blank" rel="noopener noreferrer">Abrir edição oficial</a></article>`).join('');
+  }catch(e){coversGrid.innerHTML='<div class="empty">Não foi possível carregar agora.</div>'}
+}
+if(openCovers)openCovers.addEventListener('click',()=>{home.classList.add('hidden');panel.classList.add('hidden');coversPanel.classList.remove('hidden');loadCovers()});
+if(backFromCovers)backFromCovers.addEventListener('click',()=>{coversPanel.classList.add('hidden');home.classList.remove('hidden')});

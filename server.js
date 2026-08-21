@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.10)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.11)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -123,7 +123,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.10)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -312,7 +312,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.10)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -425,7 +425,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.10)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -570,6 +570,19 @@ function filterNews(items,q,minister,tag,health) {
   return out;
 }
 
+
+const NEWSPAPER_COVERS = [
+  {id:'folha',name:'Folha de S.Paulo',description:'Edição Folha / capa e edições recentes',url:'https://acervo.folha.uol.com.br/digital/'},
+  {id:'oglobo',name:'O Globo',description:'Jornal Digital O Globo',url:'https://jornaldigital.oglobo.globo.com/'},
+  {id:'valor',name:'Valor Econômico',description:'Edição digital do Valor Econômico',url:'https://valor.globo.com/'},
+  {id:'estadao',name:'Estadão',description:'Portal oficial / edição digital',url:'https://www.estadao.com.br/'}
+];
+
+app.get('/api/covers',(req,res)=>{
+  const today=new Intl.DateTimeFormat('pt-BR',{timeZone:'America/Sao_Paulo',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date());
+  res.json({date:today,newspapers:NEWSPAPER_COVERS});
+});
+
 app.get('/api/config',(_,res)=>{
   res.json({
     sources:SOURCES.map(s=>s.name),
@@ -594,7 +607,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.10',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.11',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -911,11 +924,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.10',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.11',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.10 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.11 ativa na porta ${PORT}`);
   ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
