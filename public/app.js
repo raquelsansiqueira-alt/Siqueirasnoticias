@@ -388,15 +388,8 @@ async function loadCovers(){
     const res=await fetch('/api/covers'),data=await res.json();
     coversDate.textContent=`Edições de ${data.date}`;
     coversGrid.innerHTML=data.newspapers.map(n=>`
-      <article class="cover-card cover-clickable" data-cover-url="${escapeHtml(n.official)}" tabindex="0" role="link">
-        <div>
-          <div class="cover-image-wrap">
-            ${n.image
-              ? `<img class="cover-image" src="${escapeHtml(n.image)}" alt="Capa de ${escapeHtml(n.name)} em ${escapeHtml(data.date)}" loading="lazy">`
-              : `<div class="cover-unavailable">Capa indisponível no momento</div>`}
-          </div>
-          <h3>${escapeHtml(n.name)}</h3>
-        </div>
+      <article class="cover-card cover-card-clean">
+        <h3>${escapeHtml(n.name)}</h3>
         <button class="cover-open" type="button" data-cover-url="${escapeHtml(n.official)}">Abrir edição oficial</button>
       </article>`).join('');
   }catch(e){coversGrid.innerHTML='<div class="empty">Não foi possível carregar agora.</div>'}

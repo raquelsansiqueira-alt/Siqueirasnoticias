@@ -22,6 +22,36 @@
 .cover-clickable:focus{outline:2px solid currentColor;outline-offset:3px}
 .cover-open{border:0;cursor:pointer}
 </style>
+
+<style>
+#coversPanel .covers-grid{
+  grid-template-columns:repeat(4,minmax(180px,1fr));
+  gap:18px;
+  align-items:stretch;
+}
+#coversPanel .cover-card-clean{
+  min-height:0;
+  padding:22px;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:20px;
+  cursor:default;
+}
+#coversPanel .cover-card-clean h3{
+  margin:0;
+  font-size:1.2rem;
+}
+#coversPanel .cover-card-clean .cover-open{
+  width:100%;
+}
+@media (max-width:900px){
+  #coversPanel .covers-grid{grid-template-columns:repeat(2,minmax(180px,1fr))}
+}
+@media (max-width:520px){
+  #coversPanel .covers-grid{grid-template-columns:1fr}
+}
+</style>
 </head>
 <body>
   <header class="topbar">
