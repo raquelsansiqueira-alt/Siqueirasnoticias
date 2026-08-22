@@ -20,7 +20,7 @@ let config = {sources:[], ministers:[], stjMinisters:[]};
 const labels = {
   stf: ['STF • CNJ • Ministros', 'Monitoramento em atualização contínua'],
   stj: ['STJ • Superior Tribunal de Justiça', '33 ministros • Presidente Luis Felipe Salomão'],
-  geral: ['Notícias Geral', 'Seleção de maior relevância do Brasil e do mundo'],
+  geral: ['Giro de Notícias', 'Seleção de maior relevância do Brasil e do mundo'],
   judiciario: ['Boletins Judiciário', 'Ajufe • CNJ • STF • Ministros • STJ'],
   saude: ['Saúde', 'Saúde • Planos • OMS • SUS • Anvisa • Rede D’Or']
 };
@@ -239,7 +239,7 @@ generalEditionControls?.addEventListener('click', async e=>{
 
     const data = await res.json();
 
-    moduleBulletinTitle.textContent = 'Notícias Geral';
+    moduleBulletinTitle.textContent = 'Giro de Notícias';
     moduleBulletinGenerated.textContent = `${data.count || 0} matéria(s)`;
     moduleBulletinText.value = data.text || '';
     moduleBulletinModal.hidden = false;

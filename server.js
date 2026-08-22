@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.14)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.14.1)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -178,7 +178,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.1)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -368,7 +368,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -489,7 +489,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.1)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -720,7 +720,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.1.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -775,7 +775,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.1.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -820,7 +820,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.14',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.14.1',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -1468,11 +1468,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.14',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.14.1',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.14 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.14.1 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
