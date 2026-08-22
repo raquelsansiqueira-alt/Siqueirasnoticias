@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.12)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.13)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -178,7 +178,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -368,7 +368,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -489,7 +489,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -720,7 +720,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -775,7 +775,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -820,7 +820,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.12',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.13',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -1043,6 +1043,107 @@ function selectDiverse(items,max,used=new Set()) {
   return selected;
 }
 
+
+function saoPauloDateParts(dateValue) {
+  const parts = new Intl.DateTimeFormat('en-CA',{
+    timeZone:'America/Sao_Paulo',
+    year:'numeric',
+    month:'2-digit',
+    day:'2-digit'
+  }).formatToParts(new Date(dateValue));
+
+  const out = {};
+  parts.forEach(p=>{
+    if (p.type !== 'literal') out[p.type] = p.value;
+  });
+  return out;
+}
+
+function isSameSaoPauloDay(dateValue, reference=new Date()) {
+  const a = saoPauloDateParts(dateValue);
+  const b = saoPauloDateParts(reference);
+  return a.year === b.year && a.month === b.month && a.day === b.day;
+}
+
+function stjAfternoonDate(dateValue=new Date()) {
+  const p = saoPauloDateParts(dateValue);
+  return `${Number(p.day)}.${Number(p.month)}.${p.year}`;
+}
+
+function dedupeNews(items) {
+  const seenUrls = new Set();
+  const seenTitles = new Set();
+
+  return items.filter(item=>{
+    const urlKey = String(item.url || '').trim().toLowerCase();
+    const titleKey = normalize(item.title || '');
+
+    if ((urlKey && seenUrls.has(urlKey)) || (titleKey && seenTitles.has(titleKey))) {
+      return false;
+    }
+
+    if (urlKey) seenUrls.add(urlKey);
+    if (titleKey) seenTitles.add(titleKey);
+    return true;
+  });
+}
+
+app.get('/api/stj/boletim-tarde', async (req,res)=>{
+  const now = new Date();
+
+  // Usa todo o conjunto disponível do STJ, não apenas os 40 itens exibidos no painel.
+  const rawItems = await fetchModule('stj', false);
+  const enriched = await enrichPublishedTimes(rawItems.slice(0,120), 120);
+
+  const today = dedupeNews(
+    enriched
+      .filter(n => isSameSaoPauloDay(n.publishedAt, now))
+      .sort((a,b) => new Date(b.publishedAt) - new Date(a.publishedAt))
+  );
+
+  // Agrupa por veículo. O veículo aparece uma única vez.
+  const groups = new Map();
+
+  for (const item of today) {
+    const source = item.source || 'Veículo';
+    if (!groups.has(source)) groups.set(source, []);
+    groups.get(source).push(item);
+  }
+
+  // Ordena grupos pelo horário da notícia mais recente de cada veículo.
+  const orderedGroups = [...groups.entries()].sort((a,b)=>{
+    const aDate = Math.max(...a[1].map(n=>new Date(n.publishedAt).getTime()));
+    const bDate = Math.max(...b[1].map(n=>new Date(n.publishedAt).getTime()));
+    return bDate-aDate;
+  });
+
+  const lines = [
+    '*Edição da tarde* 📢',
+    `_${stjAfternoonDate(now)}_`
+  ];
+
+  if (!orderedGroups.length) {
+    lines.push('', 'Nenhuma matéria sobre o STJ ou seus ministros foi localizada hoje.');
+  } else {
+    for (const [source, items] of orderedGroups) {
+      lines.push('', `*${source}*`);
+
+      items.forEach((n, index)=>{
+        if (index > 0) lines.push('');
+        lines.push(n.title);
+        lines.push(n.url);
+      });
+    }
+  }
+
+  res.json({
+    text:lines.join('\n'),
+    generatedAt:now.toISOString(),
+    count:today.length,
+    sources:orderedGroups.length
+  });
+});
+
 app.get('/api/boletim/:edition',async(req,res)=>{
   const edition=Number(req.params.edition);
   if (![1,2,3].includes(edition)) return res.status(400).json({error:'Edição inválida'});
@@ -1137,11 +1238,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.12',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.13',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.12 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.13 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });

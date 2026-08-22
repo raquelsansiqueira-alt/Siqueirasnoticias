@@ -217,14 +217,19 @@ document.querySelector('#copyBoletim').addEventListener('click',async()=>{
 loadConfig();
 
 const generateModuleBulletinBtn=document.getElementById('generateModuleBulletinBtn');
+const stjAfternoonBulletinBtn=document.getElementById('stjAfternoonBulletinBtn');
 const moduleBulletinModal=document.getElementById('moduleBulletinModal');
 const moduleBulletinText=document.getElementById('moduleBulletinText');
 const moduleBulletinTitle=document.getElementById('moduleBulletinTitle');
 const moduleBulletinGenerated=document.getElementById('moduleBulletinGenerated');
 
 function updateModuleBulletinButton(){
-  if(!generateModuleBulletinBtn) return;
-  generateModuleBulletinBtn.hidden = !['stf','stj','saude'].includes(currentModule);
+  if(generateModuleBulletinBtn){
+    generateModuleBulletinBtn.hidden = !['stf','stj','saude'].includes(currentModule);
+  }
+  if(stjAfternoonBulletinBtn){
+    stjAfternoonBulletinBtn.hidden = currentModule !== 'stj';
+  }
 }
 
 function bulletinDate(d){
@@ -277,6 +282,36 @@ async function generateModuleBulletin(){
     generateModuleBulletinBtn.textContent=old;
   }
 }
+
+
+async function generateStjAfternoonBulletin(){
+  if(currentModule !== 'stj') return;
+
+  stjAfternoonBulletinBtn.disabled = true;
+  const old = stjAfternoonBulletinBtn.textContent;
+  stjAfternoonBulletinBtn.textContent = 'Gerando edição da tarde...';
+
+  try{
+    const response = await fetch('/api/stj/boletim-tarde');
+    if(!response.ok) throw new Error('Não foi possível gerar a edição da tarde.');
+
+    const data = await response.json();
+
+    moduleBulletinTitle.textContent = 'Edição da tarde • STJ';
+    moduleBulletinGenerated.textContent =
+      `${data.count || 0} matéria(s) • ${data.sources || 0} veículo(s)`;
+
+    moduleBulletinText.value = data.text || '';
+    moduleBulletinModal.hidden = false;
+  }catch(err){
+    alert(err.message || 'Não foi possível gerar a edição da tarde.');
+  }finally{
+    stjAfternoonBulletinBtn.disabled = false;
+    stjAfternoonBulletinBtn.textContent = old;
+  }
+}
+
+stjAfternoonBulletinBtn?.addEventListener('click',generateStjAfternoonBulletin);
 
 generateModuleBulletinBtn?.addEventListener('click',generateModuleBulletin);
 function closeMB(){moduleBulletinModal.hidden=true}
