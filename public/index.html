@@ -28,7 +28,7 @@
     <div>
       <p class="eyebrow">MONITORAMENTO E CLIPPING</p>
       <h1>Central de Notícias</h1>
-      <p class="subtitle">STF, STJ, Judiciário e Saúde em um só painel</p>
+      <p class="subtitle">STF, STJ, Judiciário, Saúde e Notícias Geral em um só painel</p>
     </div>
     <div class="status"><span class="dot"></span><span>Atualização automática</span></div>
   </header>
@@ -49,7 +49,12 @@
           <div class="icon">📰</div><h2>Boletins</h2>
           <p>Ajufe • CNJ • STF • Ministros • STJ</p><span>08h • 13h • 18h</span>
         </button>
-        <button class="module-card" data-open="saude">
+        
+        <button class="module-card" data-open="geral">
+          <div class="icon">🌐</div><h2>Notícias Geral</h2>
+          <p>Brasil • Mundo • Política • Justiça • Economia</p><span>Maior relevância do momento</span>
+        </button>
+<button class="module-card" data-open="saude">
           <div class="icon">🏥</div><h2>Saúde</h2>
           <p>SUS • Anvisa • OMS • Planos • Hospitais</p><span>Atualização contínua</span>
         </button>
@@ -81,7 +86,22 @@
 
       <div id="ministerFilters" class="filters hidden"></div>
 
-      <div id="boletimControls" class="boletim-controls hidden">
+      
+      <div id="generalControls" class="boletim-controls hidden">
+        <button class="filter active" data-general-filter="">Todos</button>
+        <button class="filter" data-general-filter="Política">Política</button>
+        <button class="filter" data-general-filter="Justiça">Justiça</button>
+        <button class="filter" data-general-filter="Economia">Economia</button>
+        <button class="filter" data-general-filter="Brasil">Brasil</button>
+        <button class="filter" data-general-filter="Mundo">Mundo</button>
+      </div>
+
+      <div id="generalEditionControls" class="boletim-controls hidden">
+        <button data-general-period="manha">Destaques da manhã</button>
+        <button data-general-period="tarde">Destaques da tarde</button>
+        <button data-general-period="noite">Destaques da noite</button>
+      </div>
+<div id="boletimControls" class="boletim-controls hidden">
         <button data-edition="1">Gerar 1ª edição • 08h</button>
         <button data-edition="2">Gerar 2ª edição • 13h</button>
         <button data-edition="3">Gerar 3ª edição • 18h</button>

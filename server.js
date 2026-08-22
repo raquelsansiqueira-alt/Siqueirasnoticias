@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.13)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.14)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -178,7 +178,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -368,7 +368,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -489,7 +489,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -720,7 +720,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -775,7 +775,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.13.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -820,9 +820,239 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.13',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.14',now:new Date().toISOString(),modules:diagnostics});
 });
 
+
+
+const GENERAL_FILTERS = {
+  'Política':['politica','governo','presidencia','planalto','lula','congresso','senado','camara','eleicao','eleicoes','partido','ministro','ministra','stf','stj','tse','cnj'],
+  'Justiça':['stf','supremo tribunal federal','stj','superior tribunal de justica','tse','tribunal superior eleitoral','cnj','justica','judiciario','pgr','ministerio publico','tribunal','magistratura'],
+  'Economia':['economia','mercado','ibovespa','bolsa','dolar','inflacao','juros','selic','pib','emprego','desemprego','tesouro','banco central','petroleo','ouro','credito','imposto','fiscal'],
+  'Brasil':['brasil','governo federal','congresso','senado','camara','stf','stj','saude publica','seguranca publica','desastre','crise nacional'],
+  'Mundo':['mundo','internacional','estados unidos','eua','china','europa','russia','ucrania','israel','gaza','onu','guerra','conflito','eleicao internacional','diplomacia','economia global']
+};
+
+const GENERAL_EXCLUDED_TERMS = [
+  'futebol','brasileirao','libertadores','copa do brasil','jogador','tecnico',
+  'celebridade','famoso','famosa','atriz','ator','cantor','cantora','influencer',
+  'reality','big brother','bbb','novela','show','cinema','serie','streaming',
+  'fofoca','horoscopo'
+];
+
+const GENERAL_QUERIES = [
+  '"política brasileira" OR governo OR Congresso OR STF',
+  'STF OR STJ OR TSE OR CNJ OR Justiça',
+  '"economia brasileira" OR inflação OR juros OR Banco Central OR mercado',
+  'Brasil OR "notícias do Brasil"',
+  'mundo OR internacional OR guerra OR eleições OR economia global'
+];
+
+function generalText(item){
+  return normalize(`${item.title} ${item.summary || ''} ${item.source || ''}`);
+}
+
+function isExcludedGeneral(item){
+  const text = generalText(item);
+  return GENERAL_EXCLUDED_TERMS.some(term=>text.includes(normalize(term)));
+}
+
+function matchGeneralFilter(item, filterName){
+  if (!filterName || !GENERAL_FILTERS[filterName]) return true;
+  const text = generalText(item);
+  return GENERAL_FILTERS[filterName].some(term=>text.includes(normalize(term)));
+}
+
+function generalImportanceScore(item, allItems){
+  const ageHours = Math.max(0, (Date.now()-new Date(item.publishedAt).getTime())/3600000);
+  const recency = Math.max(0, 36-ageHours);
+
+  const words = new Set(
+    normalize(item.title)
+      .replace(/[^a-z0-9\s]/g,' ')
+      .split(/\s+/)
+      .filter(w=>w.length>=5 && !['sobre','entre','depois','antes','brasil','governo','noticia','noticias','segundo','contra','pode','para','pela','pelos','pelas','mais','como','esta','esse','essa'].includes(w))
+  );
+
+  let relatedCount = 1;
+  const sources = new Set([item.source]);
+
+  for (const other of allItems){
+    if (other===item) continue;
+    const owords = new Set(
+      normalize(other.title)
+        .replace(/[^a-z0-9\s]/g,' ')
+        .split(/\s+/)
+        .filter(w=>w.length>=5)
+    );
+    let common = 0;
+    for (const w of words) if (owords.has(w)) common++;
+    if (common>=2){
+      relatedCount++;
+      sources.add(other.source);
+    }
+  }
+
+  const impactBonus =
+    /stf|stj|congresso|senado|camara|presidencia|planalto|eleicao|economia|inflacao|juros|banco central|guerra|conflito|onu/.test(generalText(item))
+      ? 20 : 0;
+
+  return recency + relatedCount*8 + sources.size*12 + impactBonus;
+}
+
+function isSameSaoPauloDay(dateValue, reference=new Date()) {
+  const fmt = d => new Intl.DateTimeFormat('en-CA',{
+    timeZone:'America/Sao_Paulo',
+    year:'numeric',month:'2-digit',day:'2-digit'
+  }).format(new Date(d));
+  return fmt(dateValue) === fmt(reference);
+}
+
+function simplePtDate(dateValue=new Date()){
+  const parts = new Intl.DateTimeFormat('en-CA',{
+    timeZone:'America/Sao_Paulo',
+    year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(new Date(dateValue));
+  const obj={}; parts.forEach(p=>{if(p.type!=='literal') obj[p.type]=p.value});
+  return `${Number(obj.day)}.${Number(obj.month)}.${obj.year}`;
+}
+
+async function fetchGeneralNews(force=false){
+  const results = await Promise.allSettled(GENERAL_QUERIES.map(loadFeed));
+  const ok = results.filter(r=>r.status==='fulfilled');
+  const rawItems = ok.flatMap(r=>r.value.items || []);
+
+  const mapped = rawItems.map((item, idx)=>{
+    const originalUrl = originalFromBing(item.link);
+    if (!originalUrl) return null;
+
+    const source = sourceFromUrl(originalUrl);
+    if (!source) return null;
+
+    const title = String(item.title || 'Sem título').trim();
+    const summary = String(item.contentSnippet || item.content || item.description || '')
+      .replace(/<[^>]+>/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+
+    return {
+      id:item.guid || item.id || `general-${idx}-${originalUrl}`,
+      module:'geral',
+      title,
+      source,
+      url:originalUrl,
+      publishedAt:item.isoDate || item.pubDate || new Date().toISOString(),
+      summary,
+      tags:[]
+    };
+  }).filter(Boolean).filter(n=>!isExcludedGeneral(n));
+
+  const seen = new Set();
+  const unique = mapped.filter(n=>{
+    const key = normalize(`${n.source}|${n.title}`);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const enriched = await enrichPublishedTimes(unique.slice(0,120),120);
+  enriched.sort((a,b)=>generalImportanceScore(b,enriched)-generalImportanceScore(a,enriched));
+  return enriched;
+}
+
+app.get('/api/general-news', async (req,res)=>{
+  const items = await fetchGeneralNews(false);
+  const filterName = req.query.filter || '';
+  const q = normalize(req.query.q || '');
+
+  let out = items.filter(n=>matchGeneralFilter(n,filterName));
+  if(q){
+    out = out.filter(n=>generalText(n).includes(q));
+  }
+
+  res.json(out.slice(0,50));
+});
+
+app.get('/api/general-highlight/:period', async (req,res)=>{
+  const period = req.params.period;
+  const labels = {manha:'manhã',tarde:'tarde',noite:'noite'};
+  if(!labels[period]) return res.status(400).json({error:'Período inválido'});
+
+  const now = new Date();
+  let items = await fetchGeneralNews(false);
+  items = items.filter(n=>isSameSaoPauloDay(n.publishedAt,now));
+
+  // Janelas editoriais. Se não houver volume suficiente, usa o dia inteiro até o momento.
+  const hourFmt = new Intl.DateTimeFormat('en-GB',{
+    timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false
+  });
+
+  const withHour = items.map(n=>({
+    ...n,
+    localHour:Number(hourFmt.format(new Date(n.publishedAt)))
+  }));
+
+  let windowed = withHour;
+  if(period==='manha') windowed = withHour.filter(n=>n.localHour < 12);
+  if(period==='tarde') windowed = withHour.filter(n=>n.localHour >= 12 && n.localHour < 18);
+  if(period==='noite') windowed = withHour.filter(n=>n.localHour >= 18);
+
+  if(windowed.length < 6) windowed = withHour;
+
+  windowed.sort((a,b)=>generalImportanceScore(b,windowed)-generalImportanceScore(a,windowed));
+
+  // Evita várias versões do mesmo fato.
+  const selected=[];
+  const usedTitles=[];
+  for (const item of windowed){
+    const words = normalize(item.title).split(/\s+/).filter(w=>w.length>=5);
+    let duplicatedTopic=false;
+
+    for(const prev of usedTitles){
+      const pwords = new Set(prev);
+      let common=0;
+      words.forEach(w=>{if(pwords.has(w)) common++});
+      if(common>=3){ duplicatedTopic=true; break; }
+    }
+    if(duplicatedTopic) continue;
+
+    selected.push(item);
+    usedTitles.push(words);
+    if(selected.length>=20) break;
+  }
+
+  // Agrupa por veículo sem repetir o nome.
+  const groups = new Map();
+  selected.forEach(item=>{
+    if(!groups.has(item.source)) groups.set(item.source,[]);
+    groups.get(item.source).push(item);
+  });
+
+  const lines = [
+    `*Edição da ${labels[period]}*`,
+    `_${simplePtDate(now)}_`
+  ];
+
+  if(!groups.size){
+    lines.push('', 'Nenhuma matéria relevante localizada para este período.');
+  }else{
+    for(const [source, sourceItems] of groups.entries()){
+      lines.push('', `*${source}*`);
+      sourceItems.forEach((n,i)=>{
+        if(i>0) lines.push('');
+        lines.push(n.title);
+        lines.push(n.url);
+      });
+    }
+  }
+
+  res.json({
+    period,
+    text:lines.join('\n'),
+    count:selected.length,
+    generatedAt:now.toISOString()
+  });
+});
 
 const FIRST_EDITION_QUERIES = {
   momento: [
@@ -1238,11 +1468,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.13',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.14',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.13 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.14 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });

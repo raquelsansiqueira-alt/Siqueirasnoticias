@@ -7,6 +7,10 @@ const ministerFilters = document.querySelector('#ministerFilters');
 const dialog = document.querySelector('#boletimDialog');
 const boletimText = document.querySelector('#boletimText');
 const loading = document.querySelector('#loading');
+const generalControls = document.querySelector('#generalControls');
+const generalEditionControls = document.querySelector('#generalEditionControls');
+let currentGeneralFilter = '';
+
 
 let currentModule = null;
 let currentMinister = '';
@@ -16,6 +20,7 @@ let config = {sources:[], ministers:[], stjMinisters:[]};
 const labels = {
   stf: ['STF • CNJ • Ministros', 'Monitoramento em atualização contínua'],
   stj: ['STJ • Superior Tribunal de Justiça', '33 ministros • Presidente Luis Felipe Salomão'],
+  geral: ['Notícias Geral', 'Seleção de maior relevância do Brasil e do mundo'],
   judiciario: ['Boletins Judiciário', 'Ajufe • CNJ • STF • Ministros • STJ'],
   saude: ['Saúde', 'Saúde • Planos • OMS • SUS • Anvisa • Rede D’Or']
 };
@@ -85,9 +90,16 @@ async function loadNews(){
   loading.classList.remove('hidden');
   try{
     const q = encodeURIComponent(search.value.trim());
-    const minister = encodeURIComponent(currentMinister);
-    const tag = encodeURIComponent(ministerFilters.dataset.tag || '');
-    const res = await fetch(`/api/news?module=${currentModule}&q=${q}&minister=${minister}&tag=${tag}`);
+    let res;
+
+    if(currentModule === 'geral'){
+      res = await fetch(`/api/general-news?filter=${encodeURIComponent(currentGeneralFilter)}&q=${q}`);
+    }else{
+      const minister = encodeURIComponent(currentMinister);
+      const tag = encodeURIComponent(ministerFilters.dataset.tag || '');
+      res = await fetch(`/api/news?module=${currentModule}&q=${q}&minister=${minister}&tag=${tag}`);
+    }
+
     const items = await res.json();
     document.querySelector('#lastUpdate').textContent =
       new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium',timeZone:'America/Sao_Paulo'}).format(new Date());
@@ -158,6 +170,12 @@ document.querySelectorAll('[data-open]').forEach(btn => btn.addEventListener('cl
   document.querySelector('#panelTitle').textContent = labels[currentModule][0];
   document.querySelector('#panelEyebrow').textContent = labels[currentModule][1];
   boletimControls.classList.toggle('hidden', currentModule !== 'judiciario');
+  generalControls.classList.toggle('hidden', currentModule !== 'geral');
+  generalEditionControls.classList.toggle('hidden', currentModule !== 'geral');
+  currentGeneralFilter = '';
+  if(currentModule === 'geral'){
+    generalControls.querySelectorAll('.filter').forEach((b,i)=>b.classList.toggle('active',i===0));
+  }
   search.value='';
   updateModuleBulletinButton();
   loadNews();
@@ -194,6 +212,42 @@ document.querySelector('#refreshNow').addEventListener('click',async()=>{
   }finally{
     btn.disabled = false;
     btn.textContent = 'Atualizar agora';
+  }
+});
+
+
+generalControls?.addEventListener('click', e=>{
+  const btn = e.target.closest('[data-general-filter]');
+  if(!btn) return;
+  generalControls.querySelectorAll('[data-general-filter]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentGeneralFilter = btn.dataset.generalFilter || '';
+  loadNews();
+});
+
+generalEditionControls?.addEventListener('click', async e=>{
+  const btn = e.target.closest('[data-general-period]');
+  if(!btn) return;
+
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = 'Gerando...';
+
+  try{
+    const res = await fetch(`/api/general-highlight/${btn.dataset.generalPeriod}`);
+    if(!res.ok) throw new Error('Não foi possível gerar os destaques.');
+
+    const data = await res.json();
+
+    moduleBulletinTitle.textContent = 'Notícias Geral';
+    moduleBulletinGenerated.textContent = `${data.count || 0} matéria(s)`;
+    moduleBulletinText.value = data.text || '';
+    moduleBulletinModal.hidden = false;
+  }catch(err){
+    alert(err.message || 'Não foi possível gerar os destaques.');
+  }finally{
+    btn.disabled = false;
+    btn.textContent = old;
   }
 });
 
