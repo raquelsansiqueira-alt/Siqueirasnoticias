@@ -11,10 +11,11 @@ const loading = document.querySelector('#loading');
 let currentModule = null;
 let currentMinister = '';
 let refreshTimer = null;
-let config = {sources:[], ministers:[]};
+let config = {sources:[], ministers:[], stjMinisters:[]};
 
 const labels = {
   stf: ['STF • CNJ • Ministros', 'Monitoramento em atualização contínua'],
+  stj: ['STJ • Superior Tribunal de Justiça', '33 ministros • Presidente Luis Felipe Salomão'],
   judiciario: ['Boletins Judiciário', 'Ajufe • CNJ • STF • Ministros • STJ'],
   saude: ['Saúde', 'Saúde • Planos • OMS • SUS • Anvisa • Rede D’Or']
 };
@@ -37,12 +38,6 @@ async function loadConfig(){
   config = await res.json();
   document.querySelector('#sourcesText').textContent = config.sources.join(', ') + '.';
 
-  ministerFilters.innerHTML = `
-    <button class="filter active" data-minister="">Todos</button>
-    <button class="filter" data-tag="STF">STF</button>
-    <button class="filter" data-tag="CNJ">CNJ</button>
-    ${config.ministers.map(m=>`<button class="filter" data-minister="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`).join('')}
-  `;
   ministerFilters.addEventListener('click', e=>{
     const btn = e.target.closest('.filter');
     if(!btn) return;
@@ -53,6 +48,37 @@ async function loadConfig(){
     loadNews();
   });
 }
+
+function renderMinisterFilters(){
+  currentMinister = '';
+  ministerFilters.dataset.tag = '';
+
+  if(currentModule === 'stf'){
+    ministerFilters.innerHTML = `
+      <button class="filter active" data-minister="">Todos</button>
+      <button class="filter" data-tag="STF">STF</button>
+      <button class="filter" data-tag="CNJ">CNJ</button>
+      ${config.ministers.map(m=>`<button class="filter" data-minister="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`).join('')}
+    `;
+    ministerFilters.classList.remove('hidden');
+    return;
+  }
+
+  if(currentModule === 'stj'){
+    const president = (config.stjMinisters || []).find(m=>m.president);
+    const others = (config.stjMinisters || []).filter(m=>!m.president);
+    ministerFilters.innerHTML = `
+      <button class="filter active" data-minister="">Todos</button>
+      ${president ? `<button class="filter" data-minister="${escapeHtml(president.name)}">Presidente • ${escapeHtml(president.name)}</button>` : ''}
+      ${others.map(m=>`<button class="filter" data-minister="${escapeHtml(m.name)}">${escapeHtml(m.name)}</button>`).join('')}
+    `;
+    ministerFilters.classList.remove('hidden');
+    return;
+  }
+
+  ministerFilters.classList.add('hidden');
+}
+
 
 async function loadNews(){
   if(!currentModule) return;
@@ -126,22 +152,23 @@ document.querySelectorAll('[data-open]').forEach(btn => btn.addEventListener('cl
   currentModule = btn.dataset.open;
   currentMinister = '';
   ministerFilters.dataset.tag = '';
-  ministerFilters.querySelectorAll('.filter').forEach((b,i)=>b.classList.toggle('active',i===0));
+  renderMinisterFilters();
   home.classList.remove('active');
   panel.classList.add('active');
   document.querySelector('#panelTitle').textContent = labels[currentModule][0];
   document.querySelector('#panelEyebrow').textContent = labels[currentModule][1];
   boletimControls.classList.toggle('hidden', currentModule !== 'judiciario');
-  ministerFilters.classList.toggle('hidden', currentModule !== 'stf');
   search.value='';
+  updateModuleBulletinButton();
   loadNews();
   clearInterval(refreshTimer);
-  refreshTimer=setInterval(loadNews,60000);
+  refreshTimer=setInterval(loadNews,30000);
 }));
 
 document.querySelector('#back').addEventListener('click',()=>{
   clearInterval(refreshTimer);
   currentModule=null;
+  updateModuleBulletinButton();
   panel.classList.remove('active');
   home.classList.add('active');
 });
@@ -194,30 +221,75 @@ const moduleBulletinModal=document.getElementById('moduleBulletinModal');
 const moduleBulletinText=document.getElementById('moduleBulletinText');
 const moduleBulletinTitle=document.getElementById('moduleBulletinTitle');
 const moduleBulletinGenerated=document.getElementById('moduleBulletinGenerated');
-function updateModuleBulletinButton(){if(generateModuleBulletinBtn)generateModuleBulletinBtn.hidden=!(state.module==='stf'||state.module==='saude');}
-function bulletinDate(d){let w=new Intl.DateTimeFormat('pt-BR',{weekday:'long'}).format(d);let x=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'long',year:'numeric'}).format(d);return w.charAt(0).toUpperCase()+w.slice(1)+', '+x;}
-async function generateModuleBulletin(){
- const module=state.module;if(!(module==='stf'||module==='saude'))return;
- generateModuleBulletinBtn.disabled=true;let old=generateModuleBulletinBtn.textContent;generateModuleBulletinBtn.textContent='Gerando...';
- try{
-  const p=new URLSearchParams({module}); if(state.q)p.set('q',state.q); if(state.minister)p.set('minister',state.minister); if(state.tag)p.set('tag',state.tag);
-  const r=await fetch('/api/news?'+p.toString()); if(!r.ok)throw new Error('Não foi possível carregar as notícias.');
-  const items=await r.json(), now=new Date(), label=module==='saude'?'SAÚDE':'STF';
-  moduleBulletinTitle.textContent='Boletim '+label; moduleBulletinGenerated.textContent='Gerado às '+now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-  let lines=['*BOLETIM '+label+'*','_'+bulletinDate(now)+'_','-'];
-  if(!items.length)lines.push('Nenhuma notícia disponível com os filtros atuais.');
-  items.forEach(n=>{lines.push('*'+n.source+'* - '+n.title);lines.push(n.url);lines.push('-');});
-  moduleBulletinText.value=lines.join('\n');moduleBulletinModal.hidden=false;
- }catch(e){alert(e.message||'Não foi possível gerar o boletim.');}
- finally{generateModuleBulletinBtn.disabled=false;generateModuleBulletinBtn.textContent=old;}
+
+function updateModuleBulletinButton(){
+  if(!generateModuleBulletinBtn) return;
+  generateModuleBulletinBtn.hidden = !['stf','stj','saude'].includes(currentModule);
 }
+
+function bulletinDate(d){
+  let w=new Intl.DateTimeFormat('pt-BR',{weekday:'long',timeZone:'America/Sao_Paulo'}).format(d);
+  let x=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'long',year:'numeric',timeZone:'America/Sao_Paulo'}).format(d);
+  return w.charAt(0).toUpperCase()+w.slice(1)+', '+x;
+}
+
+async function generateModuleBulletin(){
+  const module=currentModule;
+  if(!['stf','stj','saude'].includes(module)) return;
+
+  generateModuleBulletinBtn.disabled=true;
+  const old=generateModuleBulletinBtn.textContent;
+  generateModuleBulletinBtn.textContent='Gerando...';
+
+  try{
+    const p=new URLSearchParams({module});
+    const q=search.value.trim();
+    if(q) p.set('q',q);
+    if(currentMinister) p.set('minister',currentMinister);
+    if(ministerFilters.dataset.tag) p.set('tag',ministerFilters.dataset.tag);
+
+    const r=await fetch('/api/news?'+p.toString());
+    if(!r.ok) throw new Error('Não foi possível carregar as notícias.');
+    const items=await r.json();
+
+    const now=new Date();
+    const label=module==='saude'?'SAÚDE':module.toUpperCase();
+
+    moduleBulletinTitle.textContent='Boletim '+label;
+    moduleBulletinGenerated.textContent='Gerado às '+new Intl.DateTimeFormat('pt-BR',{
+      hour:'2-digit',minute:'2-digit',timeZone:'America/Sao_Paulo'
+    }).format(now);
+
+    const lines=['*BOLETIM '+label+'*','_'+bulletinDate(now)+'_','-'];
+    if(!items.length) lines.push('Nenhuma notícia disponível com os filtros atuais.');
+    items.forEach(n=>{
+      lines.push('*'+n.source+'* - '+n.title);
+      lines.push(n.url);
+      lines.push('-');
+    });
+
+    moduleBulletinText.value=lines.join('\n');
+    moduleBulletinModal.hidden=false;
+  }catch(e){
+    alert(e.message||'Não foi possível gerar o boletim.');
+  }finally{
+    generateModuleBulletinBtn.disabled=false;
+    generateModuleBulletinBtn.textContent=old;
+  }
+}
+
 generateModuleBulletinBtn?.addEventListener('click',generateModuleBulletin);
 function closeMB(){moduleBulletinModal.hidden=true}
 document.getElementById('closeModuleBulletin')?.addEventListener('click',closeMB);
 document.getElementById('closeModuleBulletinBottom')?.addEventListener('click',closeMB);
 moduleBulletinModal?.addEventListener('click',e=>{if(e.target===moduleBulletinModal)closeMB()});
-document.getElementById('copyModuleBulletin')?.addEventListener('click',async e=>{await navigator.clipboard.writeText(moduleBulletinText.value);let o=e.target.textContent;e.target.textContent='Copiado!';setTimeout(()=>e.target.textContent=o,1200)});
-updateModuleBulletinButton();
+document.getElementById('copyModuleBulletin')?.addEventListener('click',async e=>{
+  await navigator.clipboard.writeText(moduleBulletinText.value);
+  const old=e.target.textContent;
+  e.target.textContent='Copiado!';
+  setTimeout(()=>e.target.textContent=old,1200);
+});
+
 
 
 const coversPanel=document.querySelector('#coversPanel'),openCovers=document.querySelector('#openCovers'),backFromCovers=document.querySelector('#backFromCovers'),coversGrid=document.querySelector('#coversGrid'),coversDate=document.querySelector('#coversDate');

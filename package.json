@@ -1,8 +1,8 @@
 {
   "name": "central-noticias",
-  "version": "3.9.0",
+  "version": "3.12.0",
   "private": true,
-  "description": "Painel de monitoramento de notícias - STF, Judiciário e Saúde",
+  "description": "Painel de monitoramento de notícias - STF, STJ, Judiciário e Saúde",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

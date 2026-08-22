@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.11.4)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.12)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -62,6 +62,43 @@ const MINISTERS = [
   {name:'Gilmar Mendes', label:'Ministro Gilmar Mendes', terms:['Gilmar Mendes']}
 ];
 
+
+const STJ_MINISTERS = [
+  {name:'Luis Felipe Salomão', label:'Presidente Luis Felipe Salomão', terms:['Luis Felipe Salomão','Luis Felipe Salomao','Salomão','Salomao'], president:true},
+  {name:'Francisco Falcão', label:'Ministro Francisco Falcão', terms:['Francisco Falcão','Francisco Falcao','Falcão','Falcao']},
+  {name:'Nancy Andrighi', label:'Ministra Nancy Andrighi', terms:['Nancy Andrighi','Fátima Nancy Andrighi','Fatima Nancy Andrighi']},
+  {name:'João Otávio de Noronha', label:'Ministro João Otávio de Noronha', terms:['João Otávio de Noronha','Joao Otavio de Noronha','João Otávio','Joao Otavio','Noronha']},
+  {name:'Humberto Martins', label:'Ministro Humberto Martins', terms:['Humberto Martins']},
+  {name:'Maria Thereza de Assis Moura', label:'Ministra Maria Thereza de Assis Moura', terms:['Maria Thereza de Assis Moura','Maria Thereza Moura','Maria Thereza']},
+  {name:'Herman Benjamin', label:'Ministro Herman Benjamin', terms:['Herman Benjamin','Antonio Herman de Vasconcellos e Benjamin','Antonio Herman Benjamin']},
+  {name:'Og Fernandes', label:'Ministro Og Fernandes', terms:['Og Fernandes','Geraldo Og Fernandes']},
+  {name:'Mauro Campbell Marques', label:'Ministro Mauro Campbell Marques', terms:['Mauro Campbell Marques','Mauro Campbell']},
+  {name:'Benedito Gonçalves', label:'Ministro Benedito Gonçalves', terms:['Benedito Gonçalves','Benedito Goncalves']},
+  {name:'Raul Araújo', label:'Ministro Raul Araújo', terms:['Raul Araújo','Raul Araujo','Raul Araújo Filho','Raul Araujo Filho']},
+  {name:'Isabel Gallotti', label:'Ministra Isabel Gallotti', terms:['Isabel Gallotti','Maria Isabel Diniz Gallotti Rodrigues','Maria Isabel Gallotti']},
+  {name:'Antonio Carlos Ferreira', label:'Ministro Antonio Carlos Ferreira', terms:['Antonio Carlos Ferreira','Antônio Carlos Ferreira']},
+  {name:'Ricardo Villas Bôas Cueva', label:'Ministro Ricardo Villas Bôas Cueva', terms:['Ricardo Villas Bôas Cueva','Ricardo Villas Boas Cueva','Villas Bôas Cueva','Villas Boas Cueva']},
+  {name:'Sebastião Reis Júnior', label:'Ministro Sebastião Reis Júnior', terms:['Sebastião Reis Júnior','Sebastiao Reis Junior','Sebastião Reis','Sebastiao Reis']},
+  {name:'Marco Buzzi', label:'Ministro Marco Buzzi', terms:['Marco Buzzi','Marco Aurélio Gastaldi Buzzi','Marco Aurelio Gastaldi Buzzi']},
+  {name:'Marco Aurélio Bellizze', label:'Ministro Marco Aurélio Bellizze', terms:['Marco Aurélio Bellizze','Marco Aurelio Bellizze','Marco Bellizze']},
+  {name:'Sérgio Kukina', label:'Ministro Sérgio Kukina', terms:['Sérgio Kukina','Sergio Kukina','Sérgio Luiz Kukina','Sergio Luiz Kukina']},
+  {name:'Moura Ribeiro', label:'Ministro Moura Ribeiro', terms:['Moura Ribeiro','Paulo Dias de Moura Ribeiro']},
+  {name:'Regina Helena Costa', label:'Ministra Regina Helena Costa', terms:['Regina Helena Costa']},
+  {name:'Rogerio Schietti Cruz', label:'Ministro Rogerio Schietti Cruz', terms:['Rogerio Schietti Cruz','Rogério Schietti Cruz','Rogerio Schietti','Rogério Schietti']},
+  {name:'Gurgel de Faria', label:'Ministro Gurgel de Faria', terms:['Gurgel de Faria','Luiz Alberto Gurgel de Faria']},
+  {name:'Reynaldo Soares da Fonseca', label:'Ministro Reynaldo Soares da Fonseca', terms:['Reynaldo Soares da Fonseca','Reynaldo Fonseca']},
+  {name:'Ribeiro Dantas', label:'Ministro Ribeiro Dantas', terms:['Ribeiro Dantas','Marcelo Navarro Ribeiro Dantas','Marcelo Ribeiro Dantas']},
+  {name:'Antonio Saldanha Palheiro', label:'Ministro Antonio Saldanha Palheiro', terms:['Antonio Saldanha Palheiro','Antônio Saldanha Palheiro','Saldanha Palheiro']},
+  {name:'Joel Ilan Paciornik', label:'Ministro Joel Ilan Paciornik', terms:['Joel Ilan Paciornik','Joel Paciornik']},
+  {name:'Messod Azulay Neto', label:'Ministro Messod Azulay Neto', terms:['Messod Azulay Neto','Messod Azulay']},
+  {name:'Paulo Sérgio Domingues', label:'Ministro Paulo Sérgio Domingues', terms:['Paulo Sérgio Domingues','Paulo Sergio Domingues']},
+  {name:'Teodoro Silva Santos', label:'Ministro Teodoro Silva Santos', terms:['Teodoro Silva Santos']},
+  {name:'Afrânio Vilela', label:'Ministro Afrânio Vilela', terms:['Afrânio Vilela','Afranio Vilela','José Afrânio Vilela','Jose Afranio Vilela']},
+  {name:'Daniela Teixeira', label:'Ministra Daniela Teixeira', terms:['Daniela Teixeira','Daniela Rodrigues Teixeira']},
+  {name:'Maria Marluce Caldas Bezerra', label:'Ministra Maria Marluce Caldas Bezerra', terms:['Maria Marluce Caldas Bezerra','Marluçe Caldas','Marluce Caldas']},
+  {name:'Carlos Pires Brandão', label:'Ministro Carlos Pires Brandão', terms:['Carlos Pires Brandão','Carlos Pires Brandao','Carlos Augusto Pires Brandão','Carlos Augusto Pires Brandao']}
+];
+
 const QUERIES = {
   stf: [
     '"Supremo Tribunal Federal" OR STF',
@@ -69,6 +106,18 @@ const QUERIES = {
     '"Edson Fachin" OR "Cármen Lúcia" OR "Dias Toffoli"',
     '"Alexandre de Moraes" OR "Luiz Fux" OR "Nunes Marques"',
     '"André Mendonça" OR "Flávio Dino" OR "Cristiano Zanin" OR "Gilmar Mendes"'
+  ],
+  stj: [
+    'STJ OR "Superior Tribunal de Justiça"',
+    '"Luis Felipe Salomão" OR "Mauro Campbell Marques" OR "Herman Benjamin"',
+    '"Francisco Falcão" OR "Nancy Andrighi" OR "João Otávio de Noronha" OR "Humberto Martins"',
+    '"Maria Thereza de Assis Moura" OR "Og Fernandes" OR "Benedito Gonçalves" OR "Raul Araújo"',
+    '"Isabel Gallotti" OR "Antonio Carlos Ferreira" OR "Ricardo Villas Bôas Cueva" OR "Sebastião Reis Júnior"',
+    '"Marco Buzzi" OR "Marco Aurélio Bellizze" OR "Sérgio Kukina" OR "Moura Ribeiro"',
+    '"Regina Helena Costa" OR "Rogerio Schietti Cruz" OR "Gurgel de Faria" OR "Reynaldo Soares da Fonseca"',
+    '"Ribeiro Dantas" OR "Antonio Saldanha Palheiro" OR "Joel Ilan Paciornik" OR "Messod Azulay Neto"',
+    '"Paulo Sérgio Domingues" OR "Teodoro Silva Santos" OR "Afrânio Vilela" OR "Daniela Teixeira"',
+    '"Maria Marluce Caldas Bezerra" OR "Carlos Pires Brandão"'
   ],
   judiciario: [
     'AJUFE OR "Associação dos Juízes Federais" OR "Justiça Federal"',
@@ -113,6 +162,12 @@ const DIRECT_FEEDS = {
     {source:'Migalhas', url:'https://www.migalhas.com.br/rss'},
     {source:'ConJur', url:'https://www.conjur.com.br/feed/'}
   ],
+  stj: [
+    {source:'Agência Brasil', url:'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml'},
+    {source:'Poder360', url:'https://www.poder360.com.br/feed/'},
+    {source:'Migalhas', url:'https://www.migalhas.com.br/rss'},
+    {source:'ConJur', url:'https://www.conjur.com.br/feed/'}
+  ],
   saude: [
     {source:'Agência Brasil', url:'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml'},
     {source:'Poder360', url:'https://www.poder360.com.br/feed/'}
@@ -123,7 +178,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.4)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -159,11 +214,12 @@ function mapDirectItem(item, module, sourceName, idx) {
   };
 }
 
-let cache = {stf:[], judiciario:[], saude:[]};
-let cacheAt = {stf:0, judiciario:0, saude:0};
-let refreshing = {stf:null, judiciario:null, saude:null};
+let cache = {stf:[], stj:[], judiciario:[], saude:[]};
+let cacheAt = {stf:0, stj:0, judiciario:0, saude:0};
+let refreshing = {stf:null, stj:null, judiciario:null, saude:null};
 let diagnostics = {
   stf:{ok:false,count:0,error:null,lastAttempt:null},
+  stj:{ok:false,count:0,error:null,lastAttempt:null},
   judiciario:{ok:false,count:0,error:null,lastAttempt:null},
   saude:{ok:false,count:0,error:null,lastAttempt:null}
 };
@@ -312,7 +368,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.4)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -396,6 +452,9 @@ function classify(text='') {
   MINISTERS.forEach(m=>{
     if (m.terms.some(t=>n.includes(normalize(t)))) tags.push(m.name);
   });
+  STJ_MINISTERS.forEach(m=>{
+    if (m.terms.some(t=>n.includes(normalize(t)))) tags.push(m.name);
+  });
   return [...new Set(tags)];
 }
 
@@ -405,9 +464,14 @@ function moduleMatch(module, text='') {
     return /\bstf\b|supremo tribunal federal|\bcnj\b|conselho nacional de justica/.test(n) ||
       MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t))));
   }
+  if (module === 'stj') {
+    return /\bstj\b|superior tribunal de justica/.test(n) ||
+      STJ_MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t))));
+  }
   if (module === 'judiciario') {
     return /\bajufe\b|associacao dos juizes federais|justica federal|\bstf\b|supremo tribunal federal|\bcnj\b|conselho nacional de justica|\bstj\b|superior tribunal de justica/.test(n) ||
-      MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t))));
+      MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t)))) ||
+      STJ_MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t))));
   }
   return /saude|sus|anvisa|\boms\b|organizacao mundial da saude|ministerio da saude|plano de saude|saude suplementar|rede hospitalar|hospital|rede d.?or|instituto coalizao saude|instituto consenso|hapvida|\bans\b|agencia nacional de saude suplementar|semaglutida|ozempic|wegovy|tirzepatida|mounjaro|autismo|\btea\b|transtorno do espectro autista|cancer|oncologia|tumor|canetas? emagrecedoras?|ebola|sarampo|doencas? transmissiveis?|pandemi|coronavirus|covid|sars-cov-2|gripe|influenza|h1n1|medicina/.test(n);
 }
@@ -425,7 +489,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.4)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -656,7 +720,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.4.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -711,7 +775,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.11.4.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.12.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -735,12 +799,13 @@ app.get('/api/config',(_,res)=>{
   res.json({
     sources:SOURCES.map(s=>s.name),
     ministers:MINISTERS.map(m=>({name:m.name,label:m.label})),
+    stjMinisters:STJ_MINISTERS.map(m=>({name:m.name,label:m.label,president:Boolean(m.president)})),
     healthFilters:Object.keys(HEALTH_FILTERS)
   });
 });
 
 app.get('/api/news',async(req,res)=>{
-  const module = ['stf','judiciario','saude'].includes(req.query.module) ? req.query.module : 'stf';
+  const module = ['stf','stj','judiciario','saude'].includes(req.query.module) ? req.query.module : 'stf';
   const items = await fetchModule(module,false);
   const filtered = filterNews(items,req.query.q,req.query.minister,req.query.tag,req.query.health).slice(0,40);
   const enriched = await enrichPublishedTimes(filtered,40);
@@ -749,13 +814,13 @@ app.get('/api/news',async(req,res)=>{
 });
 
 app.post('/api/refresh',async(req,res)=>{
-  const module = ['stf','judiciario','saude'].includes(req.body.module) ? req.body.module : 'stf';
+  const module = ['stf','stj','judiciario','saude'].includes(req.body.module) ? req.body.module : 'stf';
   const items = await fetchModule(module,true);
   res.json({ok:diagnostics[module].ok,module,count:items.length,diagnostics:diagnostics[module]});
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.11.4',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.12',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -1072,11 +1137,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.11.4',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.12',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.11.4 ativa na porta ${PORT}`);
-  ['stf','judiciario','saude'].forEach(m=>fetchModule(m,true));
-  setInterval(()=>['stf','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
+  console.log(`Central de Notícias v3.12 ativa na porta ${PORT}`);
+  ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
+  setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
