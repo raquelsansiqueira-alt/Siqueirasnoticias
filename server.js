@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.14.2)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.15)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -178,7 +178,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.2)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -368,7 +368,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.2)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -489,7 +489,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.2)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -720,7 +720,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.2.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -775,7 +775,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.14.2.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -820,7 +820,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.14.2',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.15',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -1420,35 +1420,134 @@ app.get('/api/boletim/:edition',async(req,res)=>{
     return res.json({edition,text,generatedAt:now.toISOString()});
   }
 
-  // 2ª e 3ª edições: boletins mais robustos, com pelo menos 20 notícias
-  // sempre que houver material suficiente disponível.
-  const rawItems=await fetchModule('judiciario',false);
-  const items=await enrichPublishedTimes(rawItems.slice(0,80),80);
+  // 2ª e 3ª edições: mínimo de 20 matérias relevantes.
+  // Prioridade: STF e ministros do STF, Ajufe, TSE, CNJ e STJ.
+  const rawJud=await fetchModule('judiciario',false);
+  const rawStf=await fetchModule('stf',false);
+  const rawStj=await fetchModule('stj',false);
+
+  const combined=[...rawStf,...rawStj,...rawJud];
+  const base=[];
+  const seenBase=new Set();
+
+  for(const item of combined){
+    const key=normalize(`${item.source}|${item.title}`);
+    if(!key || seenBase.has(key)) continue;
+    seenBase.add(key);
+    base.push(item);
+  }
+
+  const items=await enrichPublishedTimes(base.slice(0,160),160);
   items.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
 
-  const used=new Set();
+  function isPriorityItem(item){
+    const text=normalize(`${item.title} ${item.summary||''} ${(item.tags||[]).join(' ')}`);
 
-  // Primeiro tenta priorizar notícias mais recentes das últimas 12 horas.
-  const recent=items.filter(n=>now-new Date(n.publishedAt)<=12*60*60*1000);
+    const stf=
+      /\bstf\b|supremo tribunal federal/.test(text) ||
+      MINISTERS.some(m=>m.terms.some(term=>text.includes(normalize(term))));
 
-  // Se houver menos de 20 recentes, completa com as demais mais novas.
-  const recentKeys=new Set(recent.map(n=>normalize(`${n.source}|${n.title}`)));
-  const older=items.filter(n=>!recentKeys.has(normalize(`${n.source}|${n.title}`)));
+    const ajufe=/\bajufe\b|associacao dos juizes federais/.test(text);
+    const tse=/\btse\b|tribunal superior eleitoral/.test(text);
+    const cnj=/\bcnj\b|conselho nacional de justica/.test(text);
+    const stj=/\bstj\b|superior tribunal de justica/.test(text);
 
-  const pool=[...recent,...older];
+    return stf || ajufe || tse || cnj || stj;
+  }
 
-  text+=`\n*AJUFE, CNJ, STF, MINISTROS DO STF E STJ*\n-\n`;
+  function isBroaderJudiciary(item){
+    const text=normalize(`${item.title} ${item.summary||''}`);
+    return /judiciario|justica federal|tribunal|magistratura|advocacia|pgr|procuradoria|ministerio publico|juiz|juiza|desembargador|desembargadora/.test(text);
+  }
 
-  // Meta de 25 matérias, garantindo pelo menos 20 quando disponíveis.
-  const selected=selectDiverse(pool,25,used);
-  text+=selected.map(newsLine).join('\n');
+  function titleWords(item){
+    return normalize(item.title)
+      .replace(/[^a-z0-9\s]/g,' ')
+      .split(/\s+/)
+      .filter(w=>w.length>=5 && ![
+        'sobre','entre','depois','antes','brasil','brasileiro','brasileira',
+        'noticia','noticias','segundo','contra','pode','para','pela','pelos',
+        'pelas','mais','como','esta','esse','essa','ministro','ministra'
+      ].includes(w));
+  }
+
+  function tooSimilar(item, selected){
+    const words=titleWords(item);
+    if(!words.length) return false;
+
+    for(const prev of selected){
+      const prevWords=new Set(titleWords(prev));
+      let common=0;
+      for(const word of words) if(prevWords.has(word)) common++;
+      if(common>=4) return true;
+    }
+    return false;
+  }
+
+  function appendPool(pool, selected, max=30){
+    for(const item of pool){
+      if(selected.length>=max) break;
+
+      const key=normalize(`${item.source}|${item.title}`);
+      if(selected.some(n=>normalize(`${n.source}|${n.title}`)===key)) continue;
+      if(tooSimilar(item,selected)) continue;
+
+      selected.push(item);
+    }
+  }
+
+  // 2ª edição: prioriza as últimas 12h.
+  // 3ª edição: amplia para 18h para funcionar melhor como fechamento.
+  const hours=edition===2 ? 12 : 18;
+  const windowMs=hours*60*60*1000;
+
+  const priorityRecent=items.filter(n=>
+    isPriorityItem(n) &&
+    now-new Date(n.publishedAt)<=windowMs
+  );
+
+  const priorityOlder=items.filter(n=>
+    isPriorityItem(n) &&
+    !priorityRecent.includes(n)
+  );
+
+  const broaderRecent=items.filter(n=>
+    !isPriorityItem(n) &&
+    isBroaderJudiciary(n) &&
+    now-new Date(n.publishedAt)<=windowMs
+  );
+
+  const broaderOlder=items.filter(n=>
+    !isPriorityItem(n) &&
+    isBroaderJudiciary(n) &&
+    !broaderRecent.includes(n)
+  );
+
+  const selected=[];
+
+  // Primeiro esgota os temas prioritários.
+  appendPool(priorityRecent,selected);
+  appendPool(priorityOlder,selected);
+
+  // Só amplia se ainda não tiver 20 matérias.
+  if(selected.length<20) appendPool(broaderRecent,selected);
+  if(selected.length<20) appendPool(broaderOlder,selected);
+
+  // Último recurso para não deixar o boletim curto quando houver material.
+  if(selected.length<20) appendPool(items,selected);
+
+  // Sem a linha "AJUFE, CNJ, STF, MINISTROS DO STF E STJ".
+  if(selected.length){
+    text+=`\n${selected.map(newsLine).join('\n')}`;
+  }
 
   res.json({
     edition,
     text,
     generatedAt:now.toISOString(),
     count:selected.length,
-    targetMinimum:20
+    targetMinimum:20,
+    targetMaximum:30
   });
 });
 
@@ -1468,11 +1567,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.14.2',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.15',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.14.2 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.15 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
