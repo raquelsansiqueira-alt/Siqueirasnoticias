@@ -9,7 +9,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.15)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.16)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -178,7 +178,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -368,7 +368,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -489,7 +489,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -720,7 +720,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -775,7 +775,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.15.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -820,7 +820,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.15',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.16',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -1381,43 +1381,220 @@ app.get('/api/boletim/:edition',async(req,res)=>{
   const now=new Date();
   let text=`*BOLETIM - ${edition}ª EDIÇÃO*\n_${formatDate(now)}_\n-`;
 
-  // A estrutura editorial especial existe SOMENTE na 1ª edição.
+  // 1ª edição: estrutura editorial completa.
   if (edition===1) {
     const used=new Set();
 
-    const [momentoRaw,tresRaw,judRaw,economiaRaw] = await Promise.all([
-      fetchEditorialQueries(FIRST_EDITION_QUERIES.momento),
-      fetchEditorialQueries(FIRST_EDITION_QUERIES.tresPoderes),
-      fetchEditorialQueries(FIRST_EDITION_QUERIES.judiciario),
-      fetchEditorialQueries(FIRST_EDITION_QUERIES.economia)
-    ]);
-
-    const momento=recentEnough(momentoRaw,24).filter(isPoliticalMoment);
-    const tres=recentEnough(tresRaw,24);
-    const jud=recentEnough(judRaw,24);
-    const economia=recentEnough(economiaRaw,24);
-
-    const hot=selectMoment(momento,3,used);
-    if (hot.length) {
-      text+=`\n*Assunto do Momento:*\n${hot.map(newsLine).join('\n')}`;
+    function isFactual(item){
+      const text=normalize(`${item.title} ${item.summary||''}`);
+      return !/opiniao|opinião|coluna|editorial|analise|análise|artigo|blog|comentario|comentário/.test(text);
     }
 
-    const tresSel=selectTresPoderes(tres,5,used);
-    if (tresSel.length) {
-      text+=`\n*TRÊS PODERES*\n-\n${tresSel.map(newsLine).join('\n')}`;
+    function isCandidateFocused(item){
+      const text=normalize(`${item.title} ${item.summary||''}`);
+      // Evita manchetes centradas em candidatos/personalidades quando o tema é eleitoral.
+      return /candidato|candidata|campanha|comicio|comício|apoio a|voto em|eleitorado de/.test(text);
     }
 
-    const judSel=selectEditorial(jud,5,used);
-    if (judSel.length) {
-      text+=`\n*ADVOCACIA E JUDICIÁRIO*\n-\n${judSel.map(newsLine).join('\n')}`;
+    function differentTopic(item, selected){
+      const words=normalize(item.title)
+        .replace(/[^a-z0-9\s]/g,' ')
+        .split(/\s+/)
+        .filter(w=>w.length>=5 && ![
+          'sobre','entre','depois','antes','brasil','brasileiro','brasileira',
+          'noticia','noticias','segundo','contra','pode','para','pela','pelos',
+          'pelas','mais','como','esta','esse','essa','ministro','ministra'
+        ].includes(w));
+
+      for(const prev of selected){
+        const prevWords=new Set(
+          normalize(prev.title)
+            .replace(/[^a-z0-9\s]/g,' ')
+            .split(/\s+/)
+            .filter(w=>w.length>=5)
+        );
+        let common=0;
+        for(const word of words) if(prevWords.has(word)) common++;
+        if(common>=3) return false;
+      }
+      return true;
     }
 
-    const ecoSel=selectEditorial(economia,3,used);
-    if (ecoSel.length) {
-      text+=`\n*ECONOMIA E MERCADO*\n-\n${ecoSel.map(newsLine).join('\n')}`;
+    function pickSection(pool, minCount, used, options={}){
+      const out=[];
+      const max=options.max || Math.max(minCount, minCount+3);
+
+      for(const item of pool){
+        if(out.length>=max) break;
+
+        const key=normalize(`${item.source}|${item.title}`);
+        if(used.has(key)) continue;
+        if(options.factualOnly && !isFactual(item)) continue;
+        if(options.avoidCandidateFocus && isCandidateFocused(item)) continue;
+        if(options.uniqueTopics && !differentTopic(item,out)) continue;
+
+        out.push(item);
+        used.add(key);
+      }
+      return out;
     }
 
-    return res.json({edition,text,generatedAt:now.toISOString()});
+    // ---------- ASSUNTO DO MOMENTO ----------
+    const momentoQueries = [
+      '"notícias de hoje" política Brasil',
+      'STF OR TSE OR CNJ OR eleições Brasil',
+      'guerra OR conflito internacional OR ONU',
+      'Congresso OR governo federal OR Senado OR Câmara',
+      'economia Brasil OR dólar OR Banco Central'
+    ];
+
+    const momentoRaw = await fetchEditorialQueries(momentoQueries);
+    const momentoPool = momentoRaw
+      .filter(isFactual)
+      .sort((a,b)=>momentScore(b,momentoRaw)-momentScore(a,momentoRaw));
+
+    const momento = pickSection(
+      momentoPool,
+      5,
+      used,
+      {max:5,factualOnly:true,avoidCandidateFocus:true,uniqueTopics:true}
+    );
+
+    if(momento.length){
+      text+=`\n*Assunto do Momento:*\n${momento.map(newsLine).join('\n')}`;
+    }
+
+    // ---------- TRÊS PODERES ----------
+    const tresQueries = [
+      'STF OR "Supremo Tribunal Federal"',
+      '"Alexandre de Moraes" OR "Edson Fachin" OR "Cármen Lúcia" OR "Dias Toffoli"',
+      '"Luiz Fux" OR "Nunes Marques" OR "André Mendonça" OR "Flávio Dino" OR "Cristiano Zanin" OR "Gilmar Mendes"',
+      'Presidência OR Planalto OR "governo federal" OR Lula',
+      'Senado OR Câmara OR Congresso'
+    ];
+
+    const tresRaw = await fetchEditorialQueries(tresQueries);
+
+    function tresScore(item){
+      const text=normalize(`${item.title} ${item.summary||''}`);
+      let score=0;
+      if(/\bstf\b|supremo tribunal federal/.test(text)) score+=50;
+      if(MINISTERS.some(m=>m.terms.some(term=>text.includes(normalize(term))))) score+=40;
+      if(/presidencia|planalto|governo federal|senado|camara|congresso/.test(text)) score+=20;
+      score += Math.max(0,24-((Date.now()-new Date(item.publishedAt).getTime())/3600000));
+      return score;
+    }
+
+    const tresPool=[...tresRaw].sort((a,b)=>tresScore(b)-tresScore(a));
+    let tres = pickSection(tresPool,10,used,{max:13,factualOnly:true});
+
+    if(tres.length<10){
+      const fallback = (await fetchEditorialQueries([
+        'STF ministro OR Supremo',
+        'Congresso OR Senado OR Câmara OR governo federal'
+      ])).filter(isFactual);
+      const extra=pickSection(fallback,10-tres.length,used,{max:10-tres.length,factualOnly:true});
+      tres=[...tres,...extra];
+    }
+
+    if(tres.length){
+      text+=`\n*TRÊS PODERES*\n-\n${tres.map(newsLine).join('\n')}`;
+    }
+
+    // ---------- ADVOCACIA E JUDICIÁRIO ----------
+    const judQueries = [
+      'CNJ OR "Conselho Nacional de Justiça"',
+      'STJ OR "Superior Tribunal de Justiça"',
+      'TSE OR "Tribunal Superior Eleitoral"',
+      '"Justiça Federal" OR Judiciário OR tribunal',
+      'advocacia OR magistratura OR PGR OR "Ministério Público"'
+    ];
+
+    const judRaw = await fetchEditorialQueries(judQueries);
+
+    function isGossipLike(item){
+      const text=normalize(`${item.title} ${item.summary||''}`);
+      return /famoso|famosa|celebridade|atriz|ator|cantor|cantora|influencer|bbb|reality|novela/.test(text)
+        && !/stj|tse|cnj|tribunal|decisao|decisão|recurso|processo|justica|justiça/.test(text);
+    }
+
+    const judPool=judRaw.filter(n=>isFactual(n) && !isGossipLike(n));
+    let jud=pickSection(judPool,7,used,{max:10,factualOnly:true});
+
+    if(jud.length<7){
+      const fallback=(await fetchEditorialQueries([
+        'STJ decisão OR recurso',
+        'CNJ Judiciário',
+        'TSE julgamento',
+        'Justiça Federal tribunal'
+      ])).filter(n=>isFactual(n) && !isGossipLike(n));
+      const extra=pickSection(fallback,7-jud.length,used,{max:7-jud.length,factualOnly:true});
+      jud=[...jud,...extra];
+    }
+
+    if(jud.length){
+      text+=`\n*ADVOCACIA E JUDICIÁRIO*\n-\n${jud.map(newsLine).join('\n')}`;
+    }
+
+    // ---------- ECONOMIA E MERCADO ----------
+    const economiaQueries = [
+      'site:valor.globo.com economia Brasil dólar',
+      'site:valor.globo.com Banco Central inflação juros Selic',
+      '"economia brasileira" OR dólar OR Ibovespa OR B3',
+      'Banco Central OR inflação OR IPCA OR Selic',
+      'PIB OR emprego OR desemprego OR contas públicas OR fiscal',
+      'Ministério da Fazenda OR impostos OR dívida pública OR crédito'
+    ];
+
+    const ecoRaw = await fetchEditorialQueries(economiaQueries);
+
+    function isBrazilEconomy(item){
+      const text=normalize(`${item.title} ${item.summary||''}`);
+      return /brasil|dolar|ibovespa|b3|banco central|selic|inflacao|ipca|pib|emprego|desemprego|tesouro|fiscal|fazenda|imposto|credito|petrobras|divida publica|contas publicas/.test(text);
+    }
+
+    function ecoScore(item){
+      let score=0;
+      const text=normalize(`${item.title} ${item.summary||''}`);
+      if(item.source==='Valor Econômico' || item.source==='Valor') score+=50;
+      if(/dolar|banco central|selic|inflacao|ipca|ibovespa|b3|pib/.test(text)) score+=25;
+      if(/brasil|fazenda|tesouro|fiscal|emprego|desemprego|imposto|credito/.test(text)) score+=15;
+      score+=Math.max(0,24-((Date.now()-new Date(item.publishedAt).getTime())/3600000));
+      return score;
+    }
+
+    const ecoPool=ecoRaw
+      .filter(n=>isFactual(n) && isBrazilEconomy(n))
+      .sort((a,b)=>ecoScore(b)-ecoScore(a));
+
+    let eco=pickSection(ecoPool,5,used,{max:8,factualOnly:true});
+
+    if(eco.length<5){
+      const fallback=(await fetchEditorialQueries([
+        'site:valor.globo.com dólar OR inflação OR juros OR PIB',
+        'economia Brasil dólar Selic Banco Central',
+        'Ibovespa OR B3 OR mercado financeiro Brasil'
+      ])).filter(n=>isFactual(n) && isBrazilEconomy(n));
+      const extra=pickSection(fallback,5-eco.length,used,{max:5-eco.length,factualOnly:true});
+      eco=[...eco,...extra];
+    }
+
+    if(eco.length){
+      text+=`\n*ECONOMIA E MERCADO*\n-\n${eco.map(newsLine).join('\n')}`;
+    }
+
+    return res.json({
+      edition,
+      text,
+      generatedAt:now.toISOString(),
+      counts:{
+        assuntoDoMomento:momento.length,
+        tresPoderes:tres.length,
+        advocaciaJudiciario:jud.length,
+        economiaMercado:eco.length
+      },
+      targetMinimum:27
+    });
   }
 
   // 2ª e 3ª edições: mínimo de 20 matérias relevantes.
@@ -1567,11 +1744,11 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.15',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.16',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.15 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.16 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
