@@ -10,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.17.2)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.17.4)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -179,7 +179,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.4)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -369,7 +369,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.4)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -490,7 +490,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.4)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -721,7 +721,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.4.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -776,7 +776,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.4.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -821,7 +821,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.17.2',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.17.4',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -1968,7 +1968,7 @@ function createNewsletterToken(){return crypto.randomBytes(24).toString('hex')}
 function cleanupNewsletterSessions(){const now=Date.now();for(const [t,e] of newsletterSessions.entries())if(e<=now)newsletterSessions.delete(t)}
 function newsletterAuth(req){cleanupNewsletterSessions();const h=String(req.headers.authorization||'');const t=h.startsWith('Bearer ')?h.slice(7).trim():'';const e=newsletterSessions.get(t);return Boolean(t&&e&&e>Date.now())}
 function requireNewsletterAuth(req,res){if(newsletterAuth(req))return true;res.status(401).json({error:'Acesso não autorizado'});return false}
-function cleanNewsletterSummary(v=''){v=String(v).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();if(!v)return 'Leia a matéria completa no link abaixo.';return v.length>320?v.slice(0,317).replace(/\s+\S*$/,'')+'...':v}
+function cleanNewsletterSummary(v=''){v=String(v).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();if(!v)return 'Leia a matéria completa no link abaixo.';return v.length>320?v.slice(0,317).replace(/\s+\S*$/,'')+' (...)':v}
 function newsletterDate(d=new Date()){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d),o={};p.forEach(x=>{if(x.type!=='literal')o[x.type]=x.value});return `${Number(o.day)}.${Number(o.month)}.${o.year}`}
 function newsletterLocalHour(d){return Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false}).format(new Date(d)))}
 
@@ -2026,15 +2026,15 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   for(const section of sections){
     lines.push('',`*${section.title}*`);
     const groups=new Map();for(const item of section.items){if(!groups.has(item.source))groups.set(item.source,[]);groups.get(item.source).push(item)}
-    for(const [source,items] of groups){lines.push('',`*${source}*`);items.forEach((item,i)=>{if(i)lines.push('');lines.push(item.title,cleanNewsletterSummary(item.summary),item.url)})}
+    for(const [source,items] of groups){lines.push('',`*${source}*`);items.forEach((item,i)=>{if(i)lines.push('');lines.push(item.title,`_${cleanNewsletterSummary(item.summary)}_`,item.url)})}
   }
   res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
 });
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.17.2',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.17.4',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.17.2 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.17.4 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
