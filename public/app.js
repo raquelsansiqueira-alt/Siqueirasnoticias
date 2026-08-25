@@ -424,3 +424,26 @@ coversGrid?.addEventListener('keydown', e=>{
   const url = target.dataset.coverUrl;
   if(url) window.location.assign(url);
 });
+
+
+const newsletterPanel=document.querySelector('#newsletterPanel'),openNewsletter=document.querySelector('#openNewsletter'),backFromNewsletter=document.querySelector('#backFromNewsletter'),newsletterLogin=document.querySelector('#newsletterLogin'),newsletterClients=document.querySelector('#newsletterClients'),newsletterClientGrid=document.querySelector('#newsletterClientGrid'),newsletterPassword=document.querySelector('#newsletterPassword'),newsletterLoginBtn=document.querySelector('#newsletterLoginBtn'),newsletterLoginError=document.querySelector('#newsletterLoginError');
+const getNewsletterToken=()=>localStorage.getItem('newsletterToken')||'';
+function setNewsletterToken(t){t?localStorage.setItem('newsletterToken',t):localStorage.removeItem('newsletterToken')}
+const newsletterHeaders=()=>getNewsletterToken()?{'Authorization':`Bearer ${getNewsletterToken()}`}:{};
+function showNewsletterLogin(m=''){newsletterLogin.classList.remove('hidden');newsletterClients.classList.add('hidden');newsletterLoginError.textContent=m;newsletterPassword.value=''}
+
+async function loadNewsletterClients(){
+  try{
+    const r=await fetch('/api/newsletter/clients',{headers:newsletterHeaders()});
+    if(r.status===401){setNewsletterToken('');showNewsletterLogin();return}
+    const d=await r.json().catch(()=>null);
+    if(!r.ok){showNewsletterLogin(d?.error||'Não foi possível carregar o painel.');return}
+    newsletterLogin.classList.add('hidden');newsletterClients.classList.remove('hidden');
+    newsletterClientGrid.innerHTML=d.map(c=>`<article class="newsletter-client-card"><h3>${escapeHtml(c.title)}</h3><p>${c.sections.map(escapeHtml).join(' • ')}</p><div class="newsletter-actions"><button class="outline" data-newsletter-client="${escapeHtml(c.id)}" data-newsletter-period="manha">Newsletter da manhã</button><button class="outline" data-newsletter-client="${escapeHtml(c.id)}" data-newsletter-period="tarde">Newsletter da tarde</button></div></article>`).join('');
+  }catch(e){showNewsletterLogin('Não foi possível carregar o painel Newsletter.')}
+}
+openNewsletter?.addEventListener('click',()=>{clearInterval(refreshTimer);home.classList.remove('active');panel.classList.remove('active');document.querySelector('#coversPanel')?.classList.remove('active');newsletterPanel.classList.add('active');getNewsletterToken()?loadNewsletterClients():showNewsletterLogin()});
+backFromNewsletter?.addEventListener('click',()=>{newsletterPanel.classList.remove('active');home.classList.add('active')});
+newsletterLoginBtn?.addEventListener('click',async()=>{newsletterLoginBtn.disabled=true;newsletterLoginError.textContent='';try{const r=await fetch('/api/newsletter/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:newsletterPassword.value})});const d=await r.json().catch(()=>({}));if(!r.ok){newsletterLoginError.textContent=d.error||'Não foi possível entrar.';return}setNewsletterToken(d.token);await loadNewsletterClients()}catch(e){newsletterLoginError.textContent='Não foi possível entrar agora.'}finally{newsletterLoginBtn.disabled=false}});
+newsletterPassword?.addEventListener('keydown',e=>{if(e.key==='Enter')newsletterLoginBtn?.click()});
+newsletterClientGrid?.addEventListener('click',async e=>{const b=e.target.closest('[data-newsletter-client]');if(!b)return;b.disabled=true;const old=b.textContent;b.textContent='Gerando...';try{const r=await fetch(`/api/newsletter/${encodeURIComponent(b.dataset.newsletterClient)}/${encodeURIComponent(b.dataset.newsletterPeriod)}`,{headers:newsletterHeaders()});if(r.status===401){setNewsletterToken('');showNewsletterLogin('Sua sessão expirou. Digite a senha novamente.');return}const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Não foi possível gerar a newsletter.');moduleBulletinTitle.textContent=`Newsletter • ${d.clientName}`;moduleBulletinGenerated.textContent=`${d.count||0} matéria(s)`;moduleBulletinText.value=d.text||'';moduleBulletinModal.hidden=false}catch(err){alert(err.message||'Não foi possível gerar a newsletter.')}finally{b.disabled=false;b.textContent=old}});

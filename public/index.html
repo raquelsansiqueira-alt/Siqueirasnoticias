@@ -52,7 +52,12 @@
   #coversPanel .covers-grid{grid-template-columns:1fr}
 }
 </style>
-</head>
+<style>
+.newsletter-login{max-width:460px;margin:24px auto;padding:24px;background:#fff;border:1px solid #ddd;border-radius:16px;box-shadow:0 8px 24px rgba(0,0,0,.05)}
+.newsletter-login input{width:100%;box-sizing:border-box;padding:12px 14px;margin:12px 0;border:1px solid #ccc;border-radius:10px;font:inherit}
+.newsletter-error{color:#b00020;min-height:1.2em}.newsletter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:18px}
+.newsletter-client-card{background:#fff;border:1px solid #ddd;border-radius:18px;padding:22px;box-shadow:0 8px 24px rgba(0,0,0,.05)}.newsletter-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.newsletter-actions button{flex:1;min-width:140px}
+</style></head>
 <body>
   <header class="topbar">
     <div>
@@ -80,7 +85,12 @@
           <p>Ajufe • CNJ • STF • Ministros • STJ</p><span>08h • 13h • 18h</span>
         </button>
         
-        <button class="module-card" data-open="geral">
+        
+        <button class="module-card" id="openNewsletter" type="button">
+          <div class="icon">✉️</div><h2>Newsletter</h2>
+          <p>Lúcia Bessa • Carlos Penna</p><span>Área protegida</span>
+        </button>
+<button class="module-card" data-open="geral">
           <div class="icon">🌐</div><h2>Giro de Notícias</h2>
           <p>Brasil • Mundo • Política • Justiça • Economia</p><span>Destaques de maior relevância</span>
         </button>
@@ -145,6 +155,18 @@
       <div class="panel-head"><div><h2>capa de jornais</h2><p id="coversDate">Edições do dia</p></div><button id="backFromCovers" class="filter" type="button">Voltar</button></div>
       <div id="coversGrid" class="covers-grid"></div>
       <p class="covers-note">Quando a capa completa exigir assinatura, o botão abre o ambiente oficial do próprio jornal.</p>
+    </section>
+
+    <section id="newsletterPanel" class="view">
+      <div class="toolbar"><button id="backFromNewsletter" class="ghost">← Painel principal</button></div>
+      <div class="panel-head"><div><p class="eyebrow">ÁREA PROTEGIDA</p><h2>Newsletter</h2></div></div>
+      <div id="newsletterLogin" class="newsletter-login">
+        <h3>Acesso ao painel Newsletter</h3><p>Digite a senha para acessar os boletins dos clientes.</p>
+        <input id="newsletterPassword" type="password" placeholder="Senha" autocomplete="current-password">
+        <button id="newsletterLoginBtn" class="cover-open" type="button">Entrar</button>
+        <p id="newsletterLoginError" class="newsletter-error"></p>
+      </div>
+      <div id="newsletterClients" class="hidden"><div id="newsletterClientGrid" class="newsletter-grid"></div></div>
     </section>
 </main>
 

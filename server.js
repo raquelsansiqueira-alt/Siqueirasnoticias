@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const Parser = require('rss-parser');
 
+const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const TZ = 'America/Sao_Paulo';
@@ -9,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.16.1)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.17)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -178,7 +179,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -368,7 +369,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -489,7 +490,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16.1)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -720,7 +721,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16.1.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -775,7 +776,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.16.1.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -820,7 +821,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.16.1',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.17',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -1749,11 +1750,102 @@ app.get('/api/clipping/ministers',async(_,res)=>{
   res.json(result);
 });
 
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.16.1',now:new Date().toISOString()}));
+
+// ===== NEWSLETTER PROTEGIDA =====
+const NEWSLETTER_SESSION_HOURS=8;
+const newsletterSessions=new Map();
+
+const NEWSLETTER_CLIENTS={
+  lucia:{
+    id:'lucia',name:'Lúcia Bessa',title:'Newsletter - Lúcia Bessa',
+    sections:[
+      {title:'VIOLÊNCIA CONTRA A MULHER',queries:['"violência contra a mulher" OR "violência doméstica"','feminicídio OR "Lei Maria da Penha"'],terms:['violencia contra a mulher','violencia domestica','feminicidio','lei maria da penha']},
+      {title:'DIREITOS DAS MULHERES',queries:['"direitos das mulheres" OR "direitos da mulher"','"igualdade de gênero" mulheres'],terms:['direitos das mulheres','direitos da mulher','igualdade de genero']},
+      {title:'POLÍTICAS PÚBLICAS E PROTEÇÃO',queries:['"políticas públicas" mulheres OR "proteção às mulheres"','"Casa da Mulher Brasileira" OR "rede de atendimento" mulher'],terms:['politicas publicas','protecao as mulheres','casa da mulher brasileira','rede de atendimento','delegacia da mulher']},
+      {title:'JUSTIÇA E FEMINICÍDIO',queries:['feminicídio Justiça OR julgamento feminicídio','"violência doméstica" tribunal OR Justiça'],terms:['feminicidio','violencia domestica','tribunal','justica','julgamento']}
+    ]
+  },
+  carlos:{
+    id:'carlos',name:'Carlos Penna',title:'Newsletter - Carlos Penna',
+    sections:[
+      {title:'MOBILIDADE URBANA',queries:['"mobilidade urbana" Brasil','mobilidade cidades transporte Brasil'],terms:['mobilidade urbana','mobilidade','planejamento urbano']},
+      {title:'TRANSPORTE PÚBLICO',queries:['"transporte público" ônibus metrô','ônibus OR metrô OR trem "transporte público"'],terms:['transporte publico','onibus','metro','trem','tarifa']},
+      {title:'TRÂNSITO E SEGURANÇA VIÁRIA',queries:['trânsito segurança viária Brasil','"segurança no trânsito" OR acidentes trânsito'],terms:['transito','seguranca viaria','seguranca no transito','acidente','acidentes']},
+      {title:'INFRAESTRUTURA E CIDADES',queries:['infraestrutura urbana cidades Brasil','vias urbanas obras mobilidade cidades'],terms:['infraestrutura urbana','vias urbanas','obras','cidades','urbanismo']}
+    ]
+  }
+};
+
+function createNewsletterToken(){return crypto.randomBytes(24).toString('hex')}
+function cleanupNewsletterSessions(){const now=Date.now();for(const [t,e] of newsletterSessions.entries())if(e<=now)newsletterSessions.delete(t)}
+function newsletterAuth(req){cleanupNewsletterSessions();const h=String(req.headers.authorization||'');const t=h.startsWith('Bearer ')?h.slice(7).trim():'';const e=newsletterSessions.get(t);return Boolean(t&&e&&e>Date.now())}
+function requireNewsletterAuth(req,res){if(newsletterAuth(req))return true;res.status(401).json({error:'Acesso não autorizado'});return false}
+function cleanNewsletterSummary(v=''){v=String(v).replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();if(!v)return 'Leia a matéria completa no link abaixo.';return v.length>320?v.slice(0,317).replace(/\s+\S*$/,'')+'...':v}
+function newsletterDate(d=new Date()){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d),o={};p.forEach(x=>{if(x.type!=='literal')o[x.type]=x.value});return `${Number(o.day)}.${Number(o.month)}.${o.year}`}
+function newsletterLocalHour(d){return Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false}).format(new Date(d)))}
+
+async function fetchNewsletterSection(section){
+  const rs=await Promise.allSettled(section.queries.map(loadFeed));
+  const raw=rs.filter(r=>r.status==='fulfilled').flatMap(r=>r.value.items||[]);
+  const mapped=raw.map((item,idx)=>{
+    const url=originalFromBing(item.link); if(!url)return null;
+    const source=sourceFromUrl(url); if(!source)return null;
+    const title=String(item.title||'Sem título').trim();
+    const summary=String(item.contentSnippet||item.content||item.description||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+    const hay=normalize(`${title} ${summary}`);
+    if(!section.terms.some(t=>hay.includes(normalize(t))))return null;
+    return {id:item.guid||item.id||`newsletter-${idx}-${url}`,title,source,url,publishedAt:item.isoDate||item.pubDate||new Date().toISOString(),summary};
+  }).filter(Boolean);
+  const seen=new Set();return mapped.filter(x=>{const k=normalize(`${x.source}|${x.title}`);if(!k||seen.has(k))return false;seen.add(k);return true});
+}
+
+app.post('/api/newsletter/login',(req,res)=>{
+  const configured=process.env.NEWSLETTER_PASSWORD;
+  if(!configured)return res.status(503).json({error:'Senha da Newsletter ainda não foi configurada no Render.'});
+  if(String(req.body?.password||'')!==configured)return res.status(401).json({error:'Senha incorreta'});
+  const token=createNewsletterToken(),expiresAt=Date.now()+NEWSLETTER_SESSION_HOURS*3600000;
+  newsletterSessions.set(token,expiresAt);res.json({ok:true,token,expiresAt:new Date(expiresAt).toISOString()});
+});
+
+app.get('/api/newsletter/clients',(req,res)=>{
+  if(!requireNewsletterAuth(req,res))return;
+  res.json(Object.values(NEWSLETTER_CLIENTS).map(c=>({id:c.id,name:c.name,title:c.title,sections:c.sections.map(s=>s.title)})));
+});
+
+app.get('/api/newsletter/:client/:period',async(req,res)=>{
+  if(!requireNewsletterAuth(req,res))return;
+  const client=NEWSLETTER_CLIENTS[req.params.client],period=req.params.period;
+  if(!client)return res.status(404).json({error:'Cliente não encontrado'});
+  if(!['manha','tarde'].includes(period))return res.status(400).json({error:'Período inválido'});
+
+  const now=new Date(),dayFmt=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}),today=dayFmt.format(now);
+  const used=new Set(),sections=[];
+
+  for(const section of client.sections){
+    let items=await fetchNewsletterSection(section);
+    items=await enrichPublishedTimes(items.slice(0,50),50);
+    let sameDay=items.filter(i=>dayFmt.format(new Date(i.publishedAt))===today);
+    let pool=sameDay.filter(i=>period==='manha'?newsletterLocalHour(i.publishedAt)<13:newsletterLocalHour(i.publishedAt)>=12);
+    if(pool.length<3)pool=sameDay;if(!pool.length)pool=items;
+    pool.sort((x,y)=>new Date(y.publishedAt)-new Date(x.publishedAt));
+    const selected=[];for(const item of pool){if(used.has(item.url))continue;used.add(item.url);selected.push(item);if(selected.length>=6)break}
+    if(selected.length)sections.push({title:section.title,items:selected});
+  }
+
+  const lines=[`*NEWSLETTER - ${client.name.toUpperCase()}*`,`_${newsletterDate(now)} - ${period==='manha'?'Manhã':'Tarde'}_`];
+  if(!sections.length)lines.push('','Nenhuma matéria relevante localizada para esta edição.');
+  for(const section of sections){
+    lines.push('',`*${section.title}*`);
+    const groups=new Map();for(const item of section.items){if(!groups.has(item.source))groups.set(item.source,[]);groups.get(item.source).push(item)}
+    for(const [source,items] of groups){lines.push('',`*${source}*`);items.forEach((item,i)=>{if(i)lines.push('');lines.push(item.title,cleanNewsletterSummary(item.summary),item.url)})}
+  }
+  res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
+});
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.17',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.16.1 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.17 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
