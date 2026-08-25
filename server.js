@@ -10,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.17)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.17.2)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -179,7 +179,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -369,7 +369,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -490,7 +490,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -721,7 +721,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -776,7 +776,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.17.2.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -821,7 +821,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.17',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.17.2',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -1757,21 +1757,209 @@ const newsletterSessions=new Map();
 
 const NEWSLETTER_CLIENTS={
   lucia:{
-    id:'lucia',name:'Lúcia Bessa',title:'Newsletter - Lúcia Bessa',
+    id:'lucia',
+    name:'Lúcia Bessa',
+    title:'Newsletter - Lúcia Bessa',
     sections:[
-      {title:'VIOLÊNCIA CONTRA A MULHER',queries:['"violência contra a mulher" OR "violência doméstica"','feminicídio OR "Lei Maria da Penha"'],terms:['violencia contra a mulher','violencia domestica','feminicidio','lei maria da penha']},
-      {title:'DIREITOS DAS MULHERES',queries:['"direitos das mulheres" OR "direitos da mulher"','"igualdade de gênero" mulheres'],terms:['direitos das mulheres','direitos da mulher','igualdade de genero']},
-      {title:'POLÍTICAS PÚBLICAS E PROTEÇÃO',queries:['"políticas públicas" mulheres OR "proteção às mulheres"','"Casa da Mulher Brasileira" OR "rede de atendimento" mulher'],terms:['politicas publicas','protecao as mulheres','casa da mulher brasileira','rede de atendimento','delegacia da mulher']},
-      {title:'JUSTIÇA E FEMINICÍDIO',queries:['feminicídio Justiça OR julgamento feminicídio','"violência doméstica" tribunal OR Justiça'],terms:['feminicidio','violencia domestica','tribunal','justica','julgamento']}
+      {
+        title:'VIOLÊNCIA CONTRA A MULHER',
+        queries:[
+          '"violência contra a mulher" OR "violência doméstica"',
+          '"violência de gênero" OR "agressão contra mulher"',
+          '"violência psicológica" mulher OR "violência patrimonial" mulher',
+          '"violência sexual" mulher OR stalking mulher'
+        ],
+        terms:[
+          'violencia contra a mulher','violencia domestica','violencia de genero',
+          'agressao contra mulher','violencia psicologica','violencia patrimonial',
+          'violencia sexual','stalking','perseguicao'
+        ]
+      },
+      {
+        title:'FEMINICÍDIO',
+        queries:[
+          'feminicídio OR "tentativa de feminicídio"',
+          '"combate ao feminicídio" OR "prevenção ao feminicídio"',
+          'dados feminicídio OR estatísticas feminicídio'
+        ],
+        terms:[
+          'feminicidio','tentativa de feminicidio','combate ao feminicidio',
+          'prevencao ao feminicidio'
+        ]
+      },
+      {
+        title:'ASSÉDIO E ABUSO',
+        queries:[
+          '"assédio sexual" mulher OR "assédio moral" mulher',
+          '"importunação sexual" mulher OR "abuso sexual" mulher',
+          '"crime sexual" mulher OR "violência sexual" mulher'
+        ],
+        terms:[
+          'assedio sexual','assedio moral','importunacao sexual','abuso sexual',
+          'crime sexual','violencia sexual'
+        ]
+      },
+      {
+        title:'PROTEÇÃO E DENÚNCIA',
+        queries:[
+          '"Lei Maria da Penha" OR "medida protetiva"',
+          '"Ligue 180" OR "Delegacia da Mulher" OR DEAM',
+          '"Casa da Mulher Brasileira" OR "rede de proteção" mulher'
+        ],
+        terms:[
+          'lei maria da penha','medida protetiva','medidas protetivas','ligue 180',
+          'delegacia da mulher','deam','casa da mulher brasileira','rede de protecao',
+          'acolhimento','canal de denuncia'
+        ]
+      },
+      {
+        title:'DIREITOS E EMPODERAMENTO',
+        queries:[
+          '"direitos das mulheres" OR "igualdade de gênero"',
+          '"empoderamento feminino" OR "autonomia feminina"',
+          '"independência financeira" mulheres OR "empreendedorismo feminino"',
+          '"liderança feminina" OR "participação das mulheres"'
+        ],
+        terms:[
+          'direitos das mulheres','igualdade de genero','empoderamento feminino',
+          'autonomia feminina','independencia financeira','empreendedorismo feminino',
+          'lideranca feminina','participacao das mulheres'
+        ]
+      },
+      {
+        title:'PREVENÇÃO, CAMPANHAS E DADOS',
+        queries:[
+          '"Agosto Lilás" OR campanha violência mulher',
+          'pesquisa violência contra mulheres OR dados feminicídio',
+          'estatísticas assédio mulheres OR medidas protetivas dados'
+        ],
+        terms:[
+          'agosto lilas','campanha','pesquisa','dados','estatisticas',
+          'medidas protetivas','violencia contra mulheres','feminicidio','assedio'
+        ]
+      }
+    ],
+    excludeTerms:[
+      'bbb','reality','novela','fofoca','celebridade','famoso','famosa',
+      'atriz','ator','cantor','cantora','moda','beleza','horoscopo'
     ]
   },
+
   carlos:{
-    id:'carlos',name:'Carlos Penna',title:'Newsletter - Carlos Penna',
+    id:'carlos',
+    name:'Carlos Penna',
+    title:'Newsletter - Carlos Penna',
     sections:[
-      {title:'MOBILIDADE URBANA',queries:['"mobilidade urbana" Brasil','mobilidade cidades transporte Brasil'],terms:['mobilidade urbana','mobilidade','planejamento urbano']},
-      {title:'TRANSPORTE PÚBLICO',queries:['"transporte público" ônibus metrô','ônibus OR metrô OR trem "transporte público"'],terms:['transporte publico','onibus','metro','trem','tarifa']},
-      {title:'TRÂNSITO E SEGURANÇA VIÁRIA',queries:['trânsito segurança viária Brasil','"segurança no trânsito" OR acidentes trânsito'],terms:['transito','seguranca viaria','seguranca no transito','acidente','acidentes']},
-      {title:'INFRAESTRUTURA E CIDADES',queries:['infraestrutura urbana cidades Brasil','vias urbanas obras mobilidade cidades'],terms:['infraestrutura urbana','vias urbanas','obras','cidades','urbanismo']}
+      {
+        title:'MOBILIDADE URBANA E TRANSPORTE PÚBLICO',
+        queries:[
+          '"mobilidade urbana" Brasil',
+          '"transporte público" Brasil OR "transporte coletivo"',
+          '"integração tarifária" OR bilhetagem transporte',
+          'tarifa ônibus OR passe livre OR corredores exclusivos'
+        ],
+        terms:[
+          'mobilidade urbana','transporte publico','transporte coletivo',
+          'integracao tarifaria','bilhetagem','tarifa','passe livre',
+          'corredor exclusivo','terminal rodoviario'
+        ]
+      },
+      {
+        title:'DISTRITO FEDERAL E ENTORNO',
+        queries:[
+          '"Metrô-DF" OR "metrô de Brasília"',
+          '"Semob-DF" OR "Secretaria de Transporte e Mobilidade" DF',
+          '"transporte público" Distrito Federal OR ônibus DF',
+          'BRT Brasília OR "Rodoviária do Plano Piloto"',
+          'mobilidade Entorno DF OR transporte Entorno Brasília'
+        ],
+        terms:[
+          'metro-df','metro de brasilia','semob-df',
+          'secretaria de transporte e mobilidade','distrito federal',
+          'brasilia','entorno','brt','rodoviaria do plano piloto','onibus df'
+        ]
+      },
+      {
+        title:'METRÔ',
+        queries:[
+          'metrô Brasil expansão estações',
+          '"Metrô-DF" expansão OR estação OR manutenção',
+          'metrô São Paulo OR metrô Rio OR metrô Belo Horizonte',
+          'concessão metrô OR licitação metrô'
+        ],
+        terms:[
+          'metro','metro-df','estacao','expansao','linha de metro',
+          'concessao','licitacao','manutencao'
+        ]
+      },
+      {
+        title:'TRENS E FERROVIAS DE PASSAGEIROS',
+        queries:[
+          '"trens de passageiros" Brasil',
+          '"ferrovia de passageiros" Brasil OR "trem regional"',
+          'VLT Brasil OR trem interestadual',
+          'ferrovia Brasília OR trem Brasília Entorno'
+        ],
+        terms:[
+          'trem','trens','ferrovia de passageiros','trem regional',
+          'vlt','trem interestadual','ferrovia','passageiros'
+        ]
+      },
+      {
+        title:'ÔNIBUS E BRT',
+        queries:[
+          'ônibus transporte público Brasil',
+          'ônibus elétrico Brasil',
+          'BRT Brasil OR faixa exclusiva ônibus',
+          'renovação de frota ônibus OR concessão ônibus'
+        ],
+        terms:[
+          'onibus','brt','faixa exclusiva','onibus eletrico',
+          'renovacao de frota','concessao','frota','transporte publico'
+        ]
+      },
+      {
+        title:'INFRAESTRUTURA E PLANEJAMENTO',
+        queries:[
+          'infraestrutura mobilidade urbana Brasil',
+          'obras mobilidade cidades OR corredores transporte',
+          'ciclovias planejamento urbano OR terminais transporte'
+        ],
+        terms:[
+          'infraestrutura','planejamento urbano','obras','ciclovia',
+          'corredor de transporte','terminal','vias urbanas'
+        ]
+      },
+      {
+        title:'SEGURANÇA E ACESSIBILIDADE',
+        queries:[
+          '"segurança viária" Brasil OR "segurança no trânsito"',
+          'acessibilidade transporte público OR mobilidade pessoas com deficiência',
+          'política redução mortes trânsito OR segurança transporte'
+        ],
+        terms:[
+          'seguranca viaria','seguranca no transito','acessibilidade',
+          'pessoa com deficiencia','reducao de mortes','seguranca transporte'
+        ]
+      },
+      {
+        title:'ÓRGÃOS E POLÍTICAS DE MOBILIDADE',
+        queries:[
+          'ANTT transporte passageiros OR mobilidade',
+          '"Ministério dos Transportes" mobilidade',
+          '"Ministério das Cidades" mobilidade urbana',
+          'GDF Semob mobilidade OR DER-DF transporte'
+        ],
+        terms:[
+          'antt','ministerio dos transportes','ministerio das cidades',
+          'gdf','semob','der-df','politica de mobilidade'
+        ]
+      }
+    ],
+    excludeTerms:[
+      'engarrafamento agora','trânsito agora','acidente isolado','blitz',
+      'multa de motorista','fiscalizacao rotineira','radar de velocidade',
+      'fofoca','celebridade','famoso','famosa'
     ]
   }
 };
@@ -1784,7 +1972,7 @@ function cleanNewsletterSummary(v=''){v=String(v).replace(/<[^>]+>/g,' ').replac
 function newsletterDate(d=new Date()){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d),o={};p.forEach(x=>{if(x.type!=='literal')o[x.type]=x.value});return `${Number(o.day)}.${Number(o.month)}.${o.year}`}
 function newsletterLocalHour(d){return Number(new Intl.DateTimeFormat('en-GB',{timeZone:'America/Sao_Paulo',hour:'2-digit',hour12:false}).format(new Date(d)))}
 
-async function fetchNewsletterSection(section){
+async function fetchNewsletterSection(section,excludeTerms=[]){
   const rs=await Promise.allSettled(section.queries.map(loadFeed));
   const raw=rs.filter(r=>r.status==='fulfilled').flatMap(r=>r.value.items||[]);
   const mapped=raw.map((item,idx)=>{
@@ -1794,6 +1982,7 @@ async function fetchNewsletterSection(section){
     const summary=String(item.contentSnippet||item.content||item.description||'').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
     const hay=normalize(`${title} ${summary}`);
     if(!section.terms.some(t=>hay.includes(normalize(t))))return null;
+    if((excludeTerms||[]).some(t=>hay.includes(normalize(t))))return null;
     return {id:item.guid||item.id||`newsletter-${idx}-${url}`,title,source,url,publishedAt:item.isoDate||item.pubDate||new Date().toISOString(),summary};
   }).filter(Boolean);
   const seen=new Set();return mapped.filter(x=>{const k=normalize(`${x.source}|${x.title}`);if(!k||seen.has(k))return false;seen.add(k);return true});
@@ -1822,7 +2011,7 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   const used=new Set(),sections=[];
 
   for(const section of client.sections){
-    let items=await fetchNewsletterSection(section);
+    let items=await fetchNewsletterSection(section,client.excludeTerms||[]);
     items=await enrichPublishedTimes(items.slice(0,50),50);
     let sameDay=items.filter(i=>dayFmt.format(new Date(i.publishedAt))===today);
     let pool=sameDay.filter(i=>period==='manha'?newsletterLocalHour(i.publishedAt)<13:newsletterLocalHour(i.publishedAt)>=12);
@@ -1841,11 +2030,11 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   }
   res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
 });
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.17',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.17.2',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.17 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.17.2 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
