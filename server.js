@@ -10,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.18)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.18.1)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -179,7 +179,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18.1)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -369,7 +369,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -490,7 +490,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18.1)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -721,7 +721,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18.1.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -776,7 +776,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.18.1.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -821,7 +821,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.18',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.18.1',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -1409,10 +1409,37 @@ function bulletinTitleKey(value=''){
     .trim();
 }
 
+
+function bulletinImportantWords(value=''){
+  return bulletinTitleKey(value)
+    .split(/\s+/)
+    .filter(w=>w.length>=5 && ![
+      'sobre','entre','depois','antes','brasil','brasileiro','brasileira',
+      'noticia','noticias','segundo','contra','pode','para','pela','pelos',
+      'pelas','mais','como','esta','esse','essa','ministro','ministra',
+      'tribunal','justica','federal','superior'
+    ].includes(w));
+}
+
+function bulletinFingerprint(item){
+  return bulletinImportantWords(item?.title||'').slice(0,8).sort().join('|');
+}
+
+function bulletinTitlesTooSimilar(a,b){
+  const aw=bulletinImportantWords(a?.title||'');
+  const bw=new Set(bulletinImportantWords(b?.title||''));
+  if(!aw.length || !bw.size) return false;
+  let common=0;
+  for(const w of aw) if(bw.has(w)) common++;
+  const base=Math.min(aw.length,bw.size);
+  return base<=3 ? common===base : common>=4 || (common/base)>=0.7;
+}
+
 function bulletinItemKeys(item){
   return {
     url:canonicalBulletinUrl(item?.url||''),
-    title:bulletinTitleKey(item?.title||'')
+    title:bulletinTitleKey(item?.title||''),
+    fingerprint:bulletinFingerprint(item)
   };
 }
 
@@ -1423,7 +1450,8 @@ function getDailyBulletinState(dateValue=new Date()){
     dailyBulletinStore.set(key,{
       editions:new Map(),
       usedUrls:new Set(),
-      usedTitles:new Set()
+      usedTitles:new Set(),
+      usedFingerprints:new Set()
     });
   }
   return dailyBulletinStore.get(key);
@@ -1431,10 +1459,15 @@ function getDailyBulletinState(dateValue=new Date()){
 
 function bulletinWasUsed(item,state){
   const keys=bulletinItemKeys(item);
-  return Boolean(
+  if(
     (keys.url && state.usedUrls.has(keys.url)) ||
-    (keys.title && state.usedTitles.has(keys.title))
-  );
+    (keys.title && state.usedTitles.has(keys.title)) ||
+    (keys.fingerprint && state.usedFingerprints.has(keys.fingerprint))
+  ) return true;
+  for(const usedTitle of state.usedTitles){
+    if(bulletinTitlesTooSimilar({title:item?.title||''},{title:usedTitle})) return true;
+  }
+  return false;
 }
 
 function markBulletinItems(items,state){
@@ -1442,11 +1475,21 @@ function markBulletinItems(items,state){
     const keys=bulletinItemKeys(item);
     if(keys.url) state.usedUrls.add(keys.url);
     if(keys.title) state.usedTitles.add(keys.title);
+    if(keys.fingerprint) state.usedFingerprints.add(keys.fingerprint);
   }
 }
 
 function bulletinUnused(items,state){
   return (items||[]).filter(item=>!bulletinWasUsed(item,state));
+}
+
+
+function isTodaySaoPaulo(dateValue,reference=new Date()){
+  const fmt=new Intl.DateTimeFormat('en-CA',{
+    timeZone:'America/Sao_Paulo',
+    year:'numeric',month:'2-digit',day:'2-digit'
+  });
+  return fmt.format(new Date(dateValue))===fmt.format(new Date(reference));
 }
 
 app.get('/api/boletim/:edition',async(req,res)=>{
@@ -1707,8 +1750,9 @@ app.get('/api/boletim/:edition',async(req,res)=>{
     base.push(item);
   }
 
-  let items=await enrichPublishedTimes(base.slice(0,160),160);
+  let items=await enrichPublishedTimes(base.slice(0,180),180);
   items.sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
+  items=items.filter(n=>isTodaySaoPaulo(n.publishedAt,now));
   items=bulletinUnused(items,bulletinState);
 
   function isPriorityItem(item){
@@ -1761,6 +1805,8 @@ app.get('/api/boletim/:edition',async(req,res)=>{
 
       const key=normalize(`${item.source}|${item.title}`);
       if(selected.some(n=>normalize(`${n.source}|${n.title}`)===key)) continue;
+      if(selected.some(n=>canonicalBulletinUrl(n.url)===canonicalBulletinUrl(item.url))) continue;
+      if(selected.some(n=>bulletinTitlesTooSimilar(n,item))) continue;
       if(tooSimilar(item,selected)) continue;
 
       selected.push(item);
@@ -2123,11 +2169,11 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   }
   res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
 });
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.18',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.18.1',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.18 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.18.1 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
