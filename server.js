@@ -10,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.19)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -135,15 +135,24 @@ const QUERIES = {
     '"Rede D\'Or" OR Hapvida OR "Instituto Consenso"',
     'semaglutida OR Ozempic OR Wegovy OR tirzepatida OR Mounjaro',
     'autismo OR TEA OR "transtorno do espectro autista"',
-    'câncer OR oncologia OR tumor',
-    '"canetas emagrecedoras" OR "caneta emagrecedora"',
+    'câncer OR oncologia OR tumor OR quimioterapia OR radioterapia OR imunoterapia',
+    '"canetas emagrecedoras" OR "caneta emagrecedora" OR obesidade OR bariátrica',
     'Ebola OR sarampo OR "doenças transmissíveis"',
     'pandemia OR pandêmica OR pandêmico OR coronavírus OR covid OR "covid-19" OR "SARS-CoV-2"',
     'gripe OR influenza OR H1N1 OR medicina',
-    'site:g1.globo.com/saude saúde',
-    'site:medicinasa.com.br saúde',
-    'site:medicinasa.com.br SUS OR Anvisa OR ANS OR hospital OR "plano de saúde"',
-    'site:medicinasa.com.br câncer OR semaglutida OR autismo OR gripe OR pandemia'
+    'dengue OR zika OR chikungunya OR "febre amarela"',
+    'tuberculose OR meningite OR hepatite OR HIV OR Aids',
+    'vacina OR vacinação OR imunização OR "cobertura vacinal"',
+    'diabetes OR insulina OR glicemia',
+    '"saúde mental" OR depressão OR ansiedade OR burnout',
+    '"saúde da mulher" OR endometriose OR menopausa OR "câncer de mama" OR "colo do útero"',
+    'pediatria OR "saúde infantil" OR bronquiolite OR VSR',
+    'Alzheimer OR demência OR geriatria OR "saúde do idoso"',
+    'infarto OR AVC OR hipertensão OR colesterol OR cardiologia',
+    'telemedicina OR "inteligência artificial" medicina OR "IA na saúde"',
+    '"pesquisa clínica" OR "estudo clínico" OR "ensaio clínico"',
+    'epidemia OR surto OR "emergência sanitária" OR "vigilância epidemiológica"',
+    'Fiocruz OR OPAS OR "Organização Pan-Americana da Saúde"'
   ]
 };
 
@@ -176,7 +185,7 @@ const SMART_SAFETY_TERMS = {
   stf:'STF OR "Supremo Tribunal Federal" OR "Edson Fachin" OR "Cármen Lúcia" OR "Dias Toffoli" OR "Alexandre de Moraes" OR "Luiz Fux" OR "Nunes Marques" OR "André Mendonça" OR "Flávio Dino" OR "Cristiano Zanin" OR "Gilmar Mendes"',
   stj:'STJ OR "Superior Tribunal de Justiça" OR "Luis Felipe Salomão" OR "Nancy Andrighi" OR "Herman Benjamin" OR "Mauro Campbell Marques"',
   judiciario:'STF OR STJ OR CNJ OR TSE OR AJUFE OR "Justiça Federal" OR Judiciário',
-  saude:'saúde OR SUS OR Anvisa OR ANS OR câncer OR autismo OR semaglutida OR sarampo OR gripe OR medicina',
+  saude:'saúde OR SUS OR Anvisa OR ANS OR câncer OR autismo OR semaglutida OR dengue OR vacina OR diabetes OR "saúde mental" OR gripe OR medicina',
   geral:'política OR Justiça OR economia OR Brasil OR internacional',
   editorial:'STF OR STJ OR CNJ OR TSE OR Congresso OR Senado OR Câmara OR economia',
   newsletter:'mulheres OR feminicídio OR mobilidade OR transporte OR metrô OR trem'
@@ -234,7 +243,7 @@ async function getArticleText(url=''){
       redirect:'follow',
       signal:AbortSignal.timeout(5500),
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.19)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -348,7 +357,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.19)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -538,7 +547,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.19)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -634,7 +643,7 @@ function classify(text='') {
   if (/\bcnj\b|conselho nacional de justica/.test(n)) tags.push('CNJ');
   if (/\bstj\b|superior tribunal de justica/.test(n)) tags.push('STJ');
   if (/\bajufe\b|associacao dos juizes federais/.test(n)) tags.push('Ajufe');
-  if (/saude|sus|anvisa|\boms\b|hospital|plano de saude|ministerio da saude|rede d.?or|hapvida|\bans\b|semaglutida|ozempic|wegovy|tirzepatida|mounjaro|autismo|\btea\b|cancer|oncologia|tumor|ebola|sarampo|doencas? transmissiveis?|pandemi|coronavirus|covid|sars-cov-2|gripe|influenza|h1n1|medicina/.test(n)) tags.push('Saúde');
+  if (/saude|sus|anvisa|\boms\b|hospital|plano de saude|ministerio da saude|rede d.?or|hapvida|\bans\b|semaglutida|ozempic|wegovy|tirzepatida|mounjaro|autismo|\btea\b|cancer|oncologia|tumor|quimioterapia|radioterapia|imunoterapia|obesidade|bariatrica|ebola|sarampo|doencas? transmissiveis?|pandemi|coronavirus|covid|sars-cov-2|gripe|influenza|h1n1|bronquiolite|pneumonia|\bvsr\b|dengue|zika|chikungunya|febre amarela|tuberculose|meningite|hepatite|\bhiv\b|\baids\b|vacina|vacinacao|imunizacao|diabetes|insulina|glicemia|saude mental|depressao|ansiedade|burnout|saude da mulher|endometriose|menopausa|pediatria|alzheimer|demencia|geriatria|infarto|\bavc\b|hipertensao|colesterol|cardiologia|telemedicina|inteligencia artificial|pesquisa clinica|estudo clinico|ensaio clinico|epidemia|surto|emergencia sanitaria|vigilancia epidemiologica|fiocruz|\bopas\b|medicina/.test(n)) tags.push('Saúde');
   MINISTERS.forEach(m=>{
     if (m.terms.some(t=>n.includes(normalize(t)))) tags.push(m.name);
   });
@@ -659,7 +668,7 @@ function moduleMatch(module, text='') {
       MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t)))) ||
       STJ_MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t))));
   }
-  return /saude|sus|anvisa|\boms\b|organizacao mundial da saude|ministerio da saude|plano de saude|saude suplementar|rede hospitalar|hospital|rede d.?or|instituto coalizao saude|instituto consenso|hapvida|\bans\b|agencia nacional de saude suplementar|semaglutida|ozempic|wegovy|tirzepatida|mounjaro|autismo|\btea\b|transtorno do espectro autista|cancer|oncologia|tumor|canetas? emagrecedoras?|ebola|sarampo|doencas? transmissiveis?|pandemi|coronavirus|covid|sars-cov-2|gripe|influenza|h1n1|medicina/.test(n);
+  return /saude|sus|anvisa|\boms\b|organizacao mundial da saude|ministerio da saude|plano de saude|saude suplementar|rede hospitalar|hospital|rede d.?or|instituto coalizao saude|instituto consenso|hapvida|\bans\b|agencia nacional de saude suplementar|semaglutida|ozempic|wegovy|tirzepatida|mounjaro|autismo|\btea\b|transtorno do espectro autista|cancer|oncologia|tumor|quimioterapia|radioterapia|imunoterapia|canetas? emagrecedoras?|obesidade|bariatrica|ebola|sarampo|doencas? transmissiveis?|pandemi|coronavirus|covid|sars-cov-2|gripe|influenza|h1n1|bronquiolite|pneumonia|\bvsr\b|virus sincicial respiratorio|dengue|zika|chikungunya|febre amarela|tuberculose|meningite|hepatite|\bhiv\b|\baids\b|vacina|vacinacao|imunizacao|diabetes|insulina|glicemia|saude mental|depressao|ansiedade|burnout|saude da mulher|cancer de mama|colo do utero|endometriose|menopausa|pediatria|saude infantil|alzheimer|demencia|geriatria|infarto|\bavc\b|hipertensao|colesterol|cardiologia|telemedicina|inteligencia artificial|ia na saude|pesquisa clinica|estudo clinico|ensaio clinico|epidemia|surto|emergencia sanitaria|vigilancia epidemiologica|fiocruz|\bopas\b|organizacao pan-americana da saude|medicina/.test(n);
 }
 
 function feedUrl(query) {
@@ -675,7 +684,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.19)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -789,7 +798,7 @@ const HEALTH_FILTERS = {
   'Semaglutida':['semaglutida','ozempic','wegovy'],
   'Autismo':['autismo','tea','transtorno do espectro autista'],
   'ANS':['ans','agencia nacional de saude suplementar'],
-  'Câncer':['cancer','oncologia','tumor'],
+  'Câncer':['cancer','oncologia','tumor','quimioterapia','radioterapia','imunoterapia'],
   'Canetas Emagrecedoras':['caneta emagrecedora','canetas emagrecedoras','semaglutida','ozempic','wegovy','tirzepatida','mounjaro'],
   'Ebola':['ebola'],
   'Sarampo':['sarampo'],
@@ -805,7 +814,24 @@ const HEALTH_FILTERS = {
   'OMS':['oms','organizacao mundial da saude'],
   'Rede Hospitalar':['hospital','hospitais','rede hospitalar'],
   'Rede D’Or':['rede d or','rede dor'],
-  'Instituto Consenso':['instituto consenso']
+  'Instituto Consenso':['instituto consenso'],
+  'Doenças Respiratórias':['gripe','influenza','bronquiolite','pneumonia','virus respiratorio','vsr','virus sincicial respiratorio'],
+  'Doenças Infecciosas':['dengue','zika','chikungunya','febre amarela','tuberculose','meningite','hepatite','hiv','aids'],
+  'Vacinas e Imunização':['vacina','vacinas','vacinacao','imunizacao','cobertura vacinal','calendario vacinal'],
+  'Medicamentos':['medicamento','medicamentos','remedio','remedios','farmaco','farmacos','registro na anvisa','recall de medicamento','lote de medicamento'],
+  'Obesidade e Emagrecimento':['obesidade','emagrecimento','bariatrica','cirurgia bariatrica','semaglutida','tirzepatida','ozempic','wegovy','mounjaro'],
+  'Diabetes':['diabetes','diabetes tipo 1','diabetes tipo 2','insulina','glicemia'],
+  'Saúde Mental':['saude mental','depressao','ansiedade','burnout','suicidio','psiquiatria'],
+  'Saúde da Mulher':['saude da mulher','cancer de mama','cancer do colo do utero','colo do utero','endometriose','menopausa','saude reprodutiva'],
+  'Saúde Infantil':['saude infantil','pediatria','crianca','criancas','bronquiolite','vsr'],
+  'Saúde do Idoso':['saude do idoso','idoso','idosos','envelhecimento','alzheimer','demencia','geriatria'],
+  'Cardiologia':['infarto','avc','hipertensao','colesterol','cardiologia','doenca cardiovascular'],
+  'Hospitais e Gestão':['hospital','hospitais','rede hospitalar','gestao hospitalar','fusao hospitalar','aquisicao hospitalar','investimento hospitalar'],
+  'Pesquisa e Ciência':['pesquisa clinica','estudo clinico','ensaio clinico','pesquisa medica','nova terapia','novas terapias'],
+  'Tecnologia em Saúde':['telemedicina','inteligencia artificial','ia na saude','ia na medicina','prontuario eletronico','dispositivo medico'],
+  'Epidemias e Surtos':['epidemia','epidemias','surto','surtos','emergencia sanitaria','vigilancia epidemiologica'],
+  'Saúde Internacional':['opas','organizacao pan-americana da saude','oms','organizacao mundial da saude','emergencia global','saude internacional'],
+  'Fiocruz':['fiocruz','fundacao oswaldo cruz']
 };
 
 function matchHealthFilter(item, filterName) {
@@ -912,7 +938,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.19.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -967,7 +993,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.19.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -1012,7 +1038,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.19',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.20',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -2377,11 +2403,11 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   }
   res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
 });
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.19',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.20',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.19 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.20 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
