@@ -11,6 +11,17 @@ const generalControls = document.querySelector('#generalControls');
 const generalEditionControls = document.querySelector('#generalEditionControls');
 let currentGeneralFilter = '';
 
+// Mantém a pesquisa separada por painel e impede preenchimentos automáticos
+// do navegador de virarem filtros durante a atualização automática.
+const searchState = Object.create(null);
+function currentSearchValue(){
+  return currentModule ? String(searchState[currentModule] || '').trim() : '';
+}
+function syncSearchInput(){
+  if(!search) return;
+  const expected = currentModule ? String(searchState[currentModule] || '') : '';
+  if(search.value !== expected) search.value = expected;
+}
 
 let currentModule = null;
 let currentMinister = '';
@@ -89,7 +100,10 @@ async function loadNews(){
   if(!currentModule) return;
   loading.classList.remove('hidden');
   try{
-    const q = encodeURIComponent(search.value.trim());
+    // A atualização automática usa somente o valor realmente digitado pelo usuário.
+    // Se o navegador/autofill alterar visualmente o input, ele é restaurado aqui.
+    syncSearchInput();
+    const q = encodeURIComponent(currentSearchValue());
     let res;
 
     if(currentModule === 'geral'){
@@ -176,7 +190,8 @@ document.querySelectorAll('[data-open]').forEach(btn => btn.addEventListener('cl
   if(currentModule === 'geral'){
     generalControls.querySelectorAll('.filter').forEach((b,i)=>b.classList.toggle('active',i===0));
   }
-  search.value='';
+  searchState[currentModule] = '';
+  syncSearchInput();
   updateModuleBulletinButton();
   loadNews();
   clearInterval(refreshTimer);
@@ -192,10 +207,25 @@ document.querySelector('#back').addEventListener('click',()=>{
 });
 
 let searchTimer;
-search.addEventListener('input',()=>{
+search.addEventListener('input',e=>{
+  // Só grava a pesquisa quando o próprio usuário está com o campo em foco.
+  // Isso evita que autocomplete/autofill ou restauração do navegador aplique
+  // palavras como "Newsletter" como filtro enquanto o painel fica aberto.
+  if(document.activeElement !== search){
+    syncSearchInput();
+    return;
+  }
+  if(currentModule) searchState[currentModule] = search.value;
   clearTimeout(searchTimer);
   searchTimer=setTimeout(loadNews,300);
 });
+
+// Proteção extra: ao voltar para a aba ou quando o navegador tentar restaurar
+// valores de formulário, o campo volta ao estado correto do painel atual.
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden) syncSearchInput();
+});
+window.addEventListener('pageshow',syncSearchInput);
 
 document.querySelector('#refreshNow').addEventListener('click',async()=>{
   if(!currentModule) return;
@@ -302,7 +332,8 @@ async function generateModuleBulletin(){
 
   try{
     const p=new URLSearchParams({module});
-    const q=search.value.trim();
+    syncSearchInput();
+    const q=currentSearchValue();
     if(q) p.set('q',q);
     if(currentMinister) p.set('minister',currentMinister);
     if(ministerFilters.dataset.tag) p.set('tag',ministerFilters.dataset.tag);
