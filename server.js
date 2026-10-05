@@ -10,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -49,6 +49,31 @@ const SOURCES = [
   {name:'Revista Oeste', domains:['revistaoeste.com']},
   {name:'Medicina S/A', domains:['medicinasa.com.br']}
 ];
+
+// Fontes adicionais usadas EXCLUSIVAMENTE no painel STJ.
+const STJ_EXTRA_SOURCES = [
+  {name:'STJ', domains:['stj.jus.br','res.stj.jus.br']},
+  {name:'MídiaNews', domains:['midianews.com.br']},
+  {name:'FolhaMax', domains:['folhamax.com']},
+  {name:'O Fator', domains:['ofator.com.br']},
+  {name:'Times Brasil', domains:['timesbrasil.com.br']},
+  {name:'Primeira Página', domains:['primeirapagina.com.br']},
+  {name:'Agência iNFRA', domains:['agenciainfra.com']},
+  {name:'Gazeta do Povo', domains:['gazetadopovo.com.br']},
+  {name:'Estado de Minas', domains:['em.com.br']},
+  {name:'O POVO', domains:['opovo.com.br']},
+  {name:'CartaCapital', domains:['cartacapital.com.br']},
+  {name:'Terra', domains:['terra.com.br']},
+  {name:'SBT News', domains:['sbtnews.sbt.com.br']},
+  {name:'Jovem Pan', domains:['jovempan.com.br']},
+  {name:'Band', domains:['band.com.br']},
+  {name:'Exame', domains:['exame.com']},
+  {name:'InfoMoney', domains:['infomoney.com.br']}
+];
+
+const STJ_SOURCES = [...SOURCES, ...STJ_EXTRA_SOURCES.filter(extra =>
+  !SOURCES.some(base => base.name === extra.name)
+)];
 
 const MINISTERS = [
   {name:'Edson Fachin', label:'Ministro Edson Fachin', terms:['Edson Fachin','Fachin']},
@@ -181,6 +206,15 @@ const SMART_SITE_DOMAINS = [
   'correiobraziliense.com.br'
 ];
 
+const STJ_SMART_SITE_DOMAINS = [
+  ...SMART_SITE_DOMAINS,
+  'stj.jus.br','midianews.com.br','folhamax.com','iclnoticias.com.br',
+  'ofator.com.br','timesbrasil.com.br','primeirapagina.com.br','agenciainfra.com',
+  'gazetadopovo.com.br','em.com.br','opovo.com.br','cartacapital.com.br',
+  'terra.com.br','sbtnews.sbt.com.br','jovempan.com.br','band.com.br',
+  'exame.com','infomoney.com.br'
+];
+
 const SMART_SAFETY_TERMS = {
   stf:'STF OR "Supremo Tribunal Federal" OR "Edson Fachin" OR "Cármen Lúcia" OR "Dias Toffoli" OR "Alexandre de Moraes" OR "Luiz Fux" OR "Nunes Marques" OR "André Mendonça" OR "Flávio Dino" OR "Cristiano Zanin" OR "Gilmar Mendes"',
   stj:'STJ OR "Superior Tribunal de Justiça" OR "Luis Felipe Salomão" OR "Nancy Andrighi" OR "Herman Benjamin" OR "Mauro Campbell Marques"',
@@ -204,12 +238,26 @@ function smartExpandedQueries(queries, context='geral'){
 
   // A cada atualização, consulta quatro veículos diferentes.
   // Assim cobrimos todos os veículos sem sobrecarregar o Render.
+  const domains=context==='stj' ? STJ_SMART_SITE_DOMAINS : SMART_SITE_DOMAINS;
+  const siteCount=context==='stj' ? 7 : 4;
   const cursor=smartSiteCursor[context] || 0;
-  for(let i=0;i<4;i++){
-    const domain=SMART_SITE_DOMAINS[(cursor+i)%SMART_SITE_DOMAINS.length];
+  for(let i=0;i<siteCount;i++){
+    const domain=domains[(cursor+i)%domains.length];
     base.push(`site:${domain} ${safety}`);
   }
-  smartSiteCursor[context]=(cursor+4)%SMART_SITE_DOMAINS.length;
+  smartSiteCursor[context]=(cursor+siteCount)%domains.length;
+
+  // STJ: busca nominal individual em rodízio. Em três atualizações todos os 33
+  // ministros são consultados, reduzindo perdas sem disparar dezenas de buscas
+  // simultâneas a cada ciclo.
+  if(context==='stj'){
+    const ministerCursor=smartSiteCursor.stjMinisters || 0;
+    for(let i=0;i<11;i++){
+      const minister=STJ_MINISTERS[(ministerCursor+i)%STJ_MINISTERS.length];
+      base.push(`\"${minister.name}\" STJ`);
+    }
+    smartSiteCursor.stjMinisters=(ministerCursor+11)%STJ_MINISTERS.length;
+  }
 
   return [...new Set(base.filter(Boolean))];
 }
@@ -243,7 +291,7 @@ async function getArticleText(url=''){
       redirect:'follow',
       signal:AbortSignal.timeout(5500),
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -342,6 +390,7 @@ const DIRECT_FEEDS = {
     {source:'ConJur', url:'https://www.conjur.com.br/feed/'}
   ],
   stj: [
+    {source:'STJ', url:'https://res.stj.jus.br/hrestp-c-portalp/RSS.xml'},
     {source:'Agência Brasil', url:'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml'},
     {source:'Poder360', url:'https://www.poder360.com.br/feed/'},
     {source:'Migalhas', url:'https://www.migalhas.com.br/rss'},
@@ -357,7 +406,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -379,7 +428,8 @@ function mapDirectItem(item, module, sourceName, idx) {
     .replace(/\s+/g,' ')
     .trim();
 
-  if (!moduleMatch(module, `${title} ${summary}`)) return null;
+  // O feed oficial do STJ já é, por definição, conteúdo do módulo STJ.
+  if (!(module === 'stj' && sourceName === 'STJ') && !moduleMatch(module, `${title} ${summary}`)) return null;
 
   return {
     id:item.guid || item.id || `direct-${module}-${idx}-${url}`,
@@ -547,7 +597,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -601,6 +651,23 @@ function sourceFromUrl(url='') {
       for (const domain of source.domains) {
         const d = domain.toLowerCase().replace(/^www\./,'');
         if (host === d || host.endsWith('.'+d)) return source.name;
+      }
+    }
+  } catch {}
+  return '';
+}
+
+function sourceFromUrlForModule(url='', module=''){
+  if(module !== 'stj') return sourceFromUrl(url);
+  try {
+    const host = new URL(url).hostname.toLowerCase().replace(/^www\./,'');
+    const ordered = [...STJ_SOURCES].sort((a,b) =>
+      Math.max(...b.domains.map(d=>d.length)) - Math.max(...a.domains.map(d=>d.length))
+    );
+    for (const source of ordered) {
+      for (const domain of source.domains) {
+        const d=domain.toLowerCase().replace(/^www\./,'');
+        if(host===d || host.endsWith('.'+d)) return source.name;
       }
     }
   } catch {}
@@ -724,7 +791,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -760,7 +827,7 @@ async function fetchModule(module, force=false) {
       const originalUrl = originalFromBing(item.link);
       if (!originalUrl) return null;
 
-      const source = sourceFromUrl(originalUrl);
+      const source = sourceFromUrlForModule(originalUrl,module);
       if (!source) return null;
 
       const title = String(item.title || 'Sem título').trim();
@@ -802,7 +869,7 @@ async function fetchModule(module, force=false) {
       return true;
     }).sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
 
-    const bodyChecks = module==='saude' ? 80 : 36;
+    const bodyChecks = module==='saude' ? 80 : (module==='stj' ? 60 : 36);
     const unique=(await confirmModuleCandidates(candidates,module,bodyChecks))
       .sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
 
@@ -979,7 +1046,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -1034,7 +1101,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -1054,9 +1121,79 @@ app.get('/api/cover-image/:id', async (req,res)=>{
   }
 });
 
+function escapeRegExp(value=''){
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+}
+
+function stjHighlightWhatsApp(text=''){
+  let out=String(text||'').replace(/\s+/g,' ').trim();
+  const terms=[
+    'Superior Tribunal de Justiça','STJ',
+    ...STJ_MINISTERS.flatMap(m=>m.terms)
+  ].filter(t=>String(t).trim().length>=4)
+   .sort((a,b)=>b.length-a.length);
+  for(const term of [...new Set(terms)]){
+    const rx=new RegExp(`(?<!\\*)(${escapeRegExp(term)})(?!\\*)`,'giu');
+    out=out.replace(rx,'*$1*');
+  }
+  return out;
+}
+
+function stjExcerptFromText(text='', fallback=''){
+  const clean=String(text||'').replace(/\s+/g,' ').trim();
+  const fallbackClean=String(fallback||'').replace(/\s+/g,' ').trim();
+  if(!clean) return fallbackClean.slice(0,900);
+
+  const sentences=clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [clean];
+  const scored=sentences.map((sentence,index)=>{
+    const t=sentence.trim();
+    let score=0;
+    if(/\bSTJ\b/i.test(t)) score+=8;
+    if(/Superior Tribunal de Justi[cç]a/i.test(t)) score+=9;
+    if(STJ_MINISTERS.some(m=>m.terms.some(term=>normalize(t).includes(normalize(term))))) score+=10;
+    if(t.length>=80 && t.length<=550) score+=2;
+    if(/cookie|privacidade|assine|newsletter|publicidade|menu|login|compartilhe/i.test(t)) score-=8;
+    return {t,index,score};
+  }).filter(x=>x.t.length>=45);
+
+  scored.sort((a,b)=>b.score-a.score || a.index-b.index);
+  const best=scored[0];
+  if(!best || best.score<=0) return (fallbackClean || clean).slice(0,900);
+
+  const selected=[best];
+  const next=sentences[best.index+1]?.trim();
+  if(next && next.length>=45 && !/cookie|privacidade|assine|newsletter|publicidade|menu|login/i.test(next)){
+    selected.push({t:next,index:best.index+1});
+  }
+  return selected.map(x=>x.t).join(' ').slice(0,1200);
+}
+
+async function buildStjCopyText(item){
+  const body=await getArticleText(item.url);
+  const excerpt=stjExcerptFromText(body,item.summary || item.title);
+  return `*${item.source}* | ${stjHighlightWhatsApp(excerpt)}\n${item.url}`;
+}
+
+app.get('/api/stj/copy',async(req,res)=>{
+  try{
+    const url=cleanOriginalArticleUrl(String(req.query.url||''));
+    if(!url) return res.status(400).json({error:'Link não informado.'});
+
+    // Segurança: só aceita links que já estão na coleta atual do STJ.
+    const items=await fetchModule('stj',false);
+    const item=items.find(n=>cleanOriginalArticleUrl(n.url)===url);
+    if(!item) return res.status(404).json({error:'Matéria não encontrada na coleta atual do STJ.'});
+
+    res.json({text:await buildStjCopyText(item)});
+  }catch(err){
+    res.status(500).json({error:'Não foi possível preparar o trecho desta matéria.'});
+  }
+});
+
 app.get('/api/config',(_,res)=>{
   res.json({
     sources:SOURCES.map(s=>s.name),
+    stjSources:STJ_SOURCES.map(s=>s.name),
     ministers:MINISTERS.map(m=>({name:m.name,label:m.label})),
     stjMinisters:STJ_MINISTERS.map(m=>({name:m.name,label:m.label,president:Boolean(m.president)})),
     healthFilters:Object.keys(HEALTH_FILTERS)
@@ -1079,7 +1216,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.21',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.22',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -2444,7 +2581,7 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   }
   res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
 });
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.21',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.22',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{

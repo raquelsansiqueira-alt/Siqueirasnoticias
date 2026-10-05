@@ -1,0 +1,41 @@
+CENTRAL DE NOTÍCIAS v3.22 — ALTERAÇÃO EXCLUSIVA DO BOTÃO DE CÓPIA DO STJ
+
+No arquivo public/app.js atual, localize este trecho:
+
+    }else if(btn.dataset.action === 'copy'){
+      await navigator.clipboard.writeText(`${n.title}\n${url}`);
+      const old = btn.textContent;
+      btn.textContent = 'Copiado!';
+      setTimeout(()=>btn.textContent=old,1200);
+
+Substitua SOMENTE por:
+
+    }else if(btn.dataset.action === 'copy'){
+      let copyText = `${n.title}\n${url}`;
+
+      // Novo padrão exclusivo do painel STJ:
+      // *Veículo* | trecho real da matéria com STJ/Tribunal/ministros em negrito
+      // link original
+      if(currentModule === 'stj'){
+        const response = await fetch(`/api/stj/copy?url=${encodeURIComponent(url)}`);
+        const data = await response.json().catch(()=>({}));
+        if(response.ok && data.text) copyText = data.text;
+      }
+
+      await navigator.clipboard.writeText(copyText);
+      const old = btn.textContent;
+      btn.textContent = 'Copiado!';
+      setTimeout(()=>btn.textContent=old,1200);
+
+Não altere nenhuma outra parte do app.js.
+
+O server.js incluído neste pacote já contém:
+- novos veículos exclusivos do STJ;
+- RSS oficial de notícias do STJ;
+- busca site: por mais veículos;
+- busca nominal individual dos 33 ministros em rodízio (11 por atualização; todos em até 3 ciclos);
+- leitura de corpo de até 60 candidatos do STJ;
+- endpoint /api/stj/copy;
+- trecho real da matéria com fallback para resumo original;
+- negrito WhatsApp para STJ, Superior Tribunal de Justiça e nomes dos ministros;
+- preservação dos demais painéis.
