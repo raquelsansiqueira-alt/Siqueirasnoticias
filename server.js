@@ -10,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -243,7 +243,7 @@ async function getArticleText(url=''){
       redirect:'follow',
       signal:AbortSignal.timeout(5500),
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -357,7 +357,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -547,7 +547,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -653,6 +653,47 @@ function classify(text='') {
   return [...new Set(tags)];
 }
 
+const HEALTH_STRONG_PATTERNS = [
+  /\b(sus|anvisa|ans|fiocruz|opas|oms)\b/,
+  /ministerio da saude|organizacao mundial da saude|organizacao pan-americana da saude|agencia nacional de saude suplementar|agencia nacional de vigilancia sanitaria/,
+  /plano(s)? de saude|saude suplementar|rede hospitalar|gestao hospitalar|rede d.?or|hapvida|instituto consenso/,
+  /cancer|oncologi|tumor|quimioterapia|radioterapia|imunoterapia|leucemia|linfoma|metastase/,
+  /dengue|zika|chikungunya|febre amarela|sarampo|ebola|tuberculose|meningite|hepatite|\bhiv\b|\baids\b|covid|coronavirus|sars-cov-2/,
+  /vacina|vacinacao|imunizacao|cobertura vacinal/,
+  /semaglutida|tirzepatida|ozempic|wegovy|mounjaro|obesidade|cirurgia bariatrica/,
+  /diabetes|insulina|glicemia|hipoglicemia/,
+  /autismo|transtorno do espectro autista|\btea\b/,
+  /saude mental|psiquiatr|psicolog|depressao|transtorno de ansiedade|burnout|prevencao do suicidio/,
+  /endometriose|menopausa|cancer de mama|colo do utero|saude reprodutiva|mortalidade materna|pre-natal/,
+  /pediatria|bronquiolite|virus sincicial respiratorio|\bvsr\b/,
+  /alzheimer|demencia|geriatria/,
+  /cardiologia|doenca cardiovascular|hipertensao|infarto|acidente vascular cerebral|\bavc\b/,
+  /gripe|influenza|h1n1|pneumonia|virus respiratorio/,
+  /epidemia|surto epidemiologico|emergencia sanitaria|vigilancia epidemiologica/,
+  /pesquisa clinica|ensaio clinico|estudo clinico|novo tratamento|nova terapia|medicamento|farmaco|telemedicina|prontuario eletronico|dispositivo medico/
+];
+
+const HEALTH_CONTEXT_PATTERNS = [
+  /saude|medic|clinica|paciente|tratamento|diagnostico|doenca|sintoma|terapia|hospital|farmac|epidemi|sanitari|vacin|mortalidade|prevencao|atendimento|cirurgia|exame|infect|virus|bacteria/
+];
+
+const HEALTH_WEAK_PATTERNS = [
+  /hospital|hospitais|crianca|criancas|idoso|idosos|ansiedade|medicina|tecnologia|inteligencia artificial|pesquisa|estudo|morte|mortes/
+];
+
+function healthRelevanceScore(text=''){
+  const n=normalize(text);
+  let score=0;
+  let strong=0;
+  for(const rx of HEALTH_STRONG_PATTERNS){ if(rx.test(n)){ score+=3; strong++; } }
+  for(const rx of HEALTH_CONTEXT_PATTERNS){ if(rx.test(n)) score+=2; }
+  for(const rx of HEALTH_WEAK_PATTERNS){ if(rx.test(n)) score+=1; }
+
+  // Palavras genéricas só entram quando acompanhadas de contexto real de saúde.
+  if(strong===0 && !HEALTH_CONTEXT_PATTERNS.some(rx=>rx.test(n))) return 0;
+  return score;
+}
+
 function moduleMatch(module, text='') {
   const n = normalize(text);
   if (module === 'stf') {
@@ -668,9 +709,8 @@ function moduleMatch(module, text='') {
       MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t)))) ||
       STJ_MINISTERS.some(m=>m.terms.some(t=>n.includes(normalize(t))));
   }
-  return /saude|sus|anvisa|\boms\b|organizacao mundial da saude|ministerio da saude|plano de saude|saude suplementar|rede hospitalar|hospital|rede d.?or|instituto coalizao saude|instituto consenso|hapvida|\bans\b|agencia nacional de saude suplementar|semaglutida|ozempic|wegovy|tirzepatida|mounjaro|autismo|\btea\b|transtorno do espectro autista|cancer|oncologia|tumor|quimioterapia|radioterapia|imunoterapia|canetas? emagrecedoras?|obesidade|bariatrica|ebola|sarampo|doencas? transmissiveis?|pandemi|coronavirus|covid|sars-cov-2|gripe|influenza|h1n1|bronquiolite|pneumonia|\bvsr\b|virus sincicial respiratorio|dengue|zika|chikungunya|febre amarela|tuberculose|meningite|hepatite|\bhiv\b|\baids\b|vacina|vacinacao|imunizacao|diabetes|insulina|glicemia|saude mental|depressao|ansiedade|burnout|saude da mulher|cancer de mama|colo do utero|endometriose|menopausa|pediatria|saude infantil|alzheimer|demencia|geriatria|infarto|\bavc\b|hipertensao|colesterol|cardiologia|telemedicina|inteligencia artificial|ia na saude|pesquisa clinica|estudo clinico|ensaio clinico|epidemia|surto|emergencia sanitaria|vigilancia epidemiologica|fiocruz|\bopas\b|organizacao pan-americana da saude|medicina/.test(n);
+  return healthRelevanceScore(text) >= 3;
 }
-
 function feedUrl(query) {
   const p = new URLSearchParams({
     q: query,
@@ -684,7 +724,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -762,7 +802,8 @@ async function fetchModule(module, force=false) {
       return true;
     }).sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
 
-    const unique=(await confirmModuleCandidates(candidates,module,36))
+    const bodyChecks = module==='saude' ? 80 : 36;
+    const unique=(await confirmModuleCandidates(candidates,module,bodyChecks))
       .sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt));
 
     cache[module] = unique;
@@ -938,7 +979,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -993,7 +1034,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.20.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.21.1)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -1038,7 +1079,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.20',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.21',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -2403,11 +2444,11 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   }
   res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
 });
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.20',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.21',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.20 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.21 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
