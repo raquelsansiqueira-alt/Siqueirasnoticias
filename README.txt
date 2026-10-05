@@ -1,7 +1,12 @@
-CENTRAL DE NOTÍCIAS v3.22 — STJ REFORÇADO
+Central de Notícias v3.22.1 — STJ Imprensa
 
-1. Substitua o server.js do repositório por este server.js.
-2. No public/app.js, faça SOMENTE a troca descrita em APP-JS-ALTERACAO.txt.
-3. Faça o deploy normalmente no Render.
+CORREÇÃO:
+- Remove completamente o Portal/RSS oficial do STJ do painel STJ.
+- Mantém TODOS os veículos que já existiam na Central.
+- Mantém os novos veículos adicionados ao monitoramento do STJ.
+- Mantém a busca reforçada por STJ, Superior Tribunal de Justiça e ministros.
+- Mantém o novo formato de cópia exclusivo do painel STJ.
+- Não altera os demais painéis.
 
-IMPORTANTE: os novos veículos foram adicionados à coleta do STJ, não à lista global dos outros painéis.
+Substitua server.js pelo arquivo desta pasta.
+Se ainda não aplicou a alteração do botão de cópia da v3.22, siga APP-JS-ALTERACAO.txt.

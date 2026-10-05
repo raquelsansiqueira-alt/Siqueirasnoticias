@@ -10,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -52,7 +52,6 @@ const SOURCES = [
 
 // Fontes adicionais usadas EXCLUSIVAMENTE no painel STJ.
 const STJ_EXTRA_SOURCES = [
-  {name:'STJ', domains:['stj.jus.br','res.stj.jus.br']},
   {name:'MídiaNews', domains:['midianews.com.br']},
   {name:'FolhaMax', domains:['folhamax.com']},
   {name:'O Fator', domains:['ofator.com.br']},
@@ -208,7 +207,7 @@ const SMART_SITE_DOMAINS = [
 
 const STJ_SMART_SITE_DOMAINS = [
   ...SMART_SITE_DOMAINS,
-  'stj.jus.br','midianews.com.br','folhamax.com','iclnoticias.com.br',
+'midianews.com.br','folhamax.com','iclnoticias.com.br',
   'ofator.com.br','timesbrasil.com.br','primeirapagina.com.br','agenciainfra.com',
   'gazetadopovo.com.br','em.com.br','opovo.com.br','cartacapital.com.br',
   'terra.com.br','sbtnews.sbt.com.br','jovempan.com.br','band.com.br',
@@ -291,7 +290,7 @@ async function getArticleText(url=''){
       redirect:'follow',
       signal:AbortSignal.timeout(5500),
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -390,7 +389,6 @@ const DIRECT_FEEDS = {
     {source:'ConJur', url:'https://www.conjur.com.br/feed/'}
   ],
   stj: [
-    {source:'STJ', url:'https://res.stj.jus.br/hrestp-c-portalp/RSS.xml'},
     {source:'Agência Brasil', url:'https://agenciabrasil.ebc.com.br/rss/ultimasnoticias/feed.xml'},
     {source:'Poder360', url:'https://www.poder360.com.br/feed/'},
     {source:'Migalhas', url:'https://www.migalhas.com.br/rss'},
@@ -406,7 +404,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -597,7 +595,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -791,7 +789,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -1216,7 +1214,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.22',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.22.1',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -2581,11 +2579,11 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   }
   res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
 });
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.22',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.22.1',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.21 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.22.1 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
