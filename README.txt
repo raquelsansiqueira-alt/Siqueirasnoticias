@@ -1,27 +1,11 @@
-CENTRAL DE NOTÍCIAS v3.22.3 — STJ
+Central de Notícias v3.22.4 — correção de homônimos no painel STJ
 
-ALTERAÇÃO EXCLUSIVA DO PAINEL STJ.
+ALTERAÇÃO EXCLUSIVA DO FILTRO STJ:
+- Nome de ministro sozinho não é mais suficiente para validar uma matéria.
+- Quando a notícia não cita STJ/Superior Tribunal de Justiça, o nome do ministro precisa aparecer perto de contexto jurídico/institucional (ministro, tribunal, relator, julgamento, decisão, recurso etc.).
+- Evita o falso positivo do ator/candidato Humberto Martins.
+- O Instituto Brasileiro de Estudos e Desenvolvimento de Direito Empresarial continua como filtro próprio.
+- Mantém os novos jornais e todas as demais configurações da v3.22.3.
 
-Novos veículos adicionados:
-- Folha de Mato Grosso
-- Midiamax
-- Extra
-- Intercept Brasil
-- revista piauí
-- Amado Mundo
-- Correio da Manhã
-- Broadcast
-- Direito Global
-
-SBT News e CartaCapital já estavam cadastrados e foram mantidos.
-Todos os veículos anteriores também foram preservados.
-
-Novo termo monitorado:
-- Instituto Brasileiro de Estudos e Desenvolvimento de Direito Empresarial
-
-Esse termo funciona como critério próprio: uma matéria pode entrar no painel STJ se o conteúdo editorial real mencionar o Instituto, mesmo sem citar STJ/ministro.
-
-O filtro de conteúdo real permanece: menu, rodapé, chamadas relacionadas e blocos laterais não validam a notícia.
-
-COMO ATUALIZAR:
-Substitua somente o server.js no GitHub pelo server.js desta pasta e faça o commit. O app.js não precisa ser alterado nesta atualização.
+INSTALAÇÃO:
+Substitua somente o server.js no GitHub e faça o commit/deploy no Render.

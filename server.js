@@ -10,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.22.4)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -343,7 +343,7 @@ async function getArticleText(url='', editorialOnly=false){
       redirect:'follow',
       signal:AbortSignal.timeout(5500),
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.4)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -374,17 +374,44 @@ async function getArticleText(url='', editorialOnly=false){
 function stjRealContentMatch(text=''){
   const n=normalize(text);
   if(!n) return false;
+
+  // Menção direta ao Tribunal continua sendo prova suficiente.
   if(/\bstj\b|superior tribunal de justica/.test(n)) return true;
   if(n.includes('instituto brasileiro de estudos e desenvolvimento de direito empresarial')) return true;
 
-  // Para nomes, prioriza variantes com pelo menos duas palavras ou sobrenomes bem específicos.
-  // Evita falsos positivos de termos curtos/genéricos encontrados fora do contexto.
+  // v3.22.4: nome de ministro, sozinho, NÃO basta mais.
+  // Isso evita homônimos como o ator/candidato Humberto Martins.
+  // Para validar pelo nome, exigimos contexto jurídico/institucional próximo da ocorrência.
+  const legalContext=/\b(ministro|ministra|magistrado|magistrada|tribunal|corte|relator|relatora|presidente do stj|vice-presidente do stj|turma|secao|corte especial|julgamento|julgar|julgou|decisao|decidiu|voto|acordao|recurso|habeas corpus|processo|liminar|desembargador|desembargadora|judiciario)\b/;
+  const nonJudicialContext=/\b(ator|atriz|cantor|cantora|artista|celebridade|candidato|candidata|eleicao|eleicoes|deputado|deputada|vereador|vereadora)\b/;
+
   return STJ_MINISTERS.some(m=>m.terms.some(term=>{
     const t=normalize(term).trim();
     if(!t) return false;
+
+    // Termos de uma palavra continuam descartados quando são curtos/genéricos.
     const words=t.split(/\s+/).filter(Boolean);
-    if(words.length>=2) return n.includes(t);
-    return t.length>=7 && n.includes(t);
+    if(words.length<2 && t.length<7) return false;
+
+    let pos=n.indexOf(t);
+    while(pos!==-1){
+      const start=Math.max(0,pos-260);
+      const end=Math.min(n.length,pos+t.length+260);
+      const window=n.slice(start,end);
+
+      // Contexto jurídico próximo confirma que se trata do ministro.
+      if(legalContext.test(window)) return true;
+
+      // Contexto explicitamente não jurídico reforça o descarte do homônimo.
+      // Sem contexto jurídico, a ocorrência nunca é aceita de qualquer forma.
+      if(nonJudicialContext.test(window)){
+        pos=n.indexOf(t,pos+t.length);
+        continue;
+      }
+
+      pos=n.indexOf(t,pos+t.length);
+    }
+    return false;
   }));
 }
 
@@ -506,7 +533,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.4)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -697,7 +724,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.4)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -891,7 +918,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.4)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -1146,7 +1173,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.4)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -1201,7 +1228,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.4)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -1316,7 +1343,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.22.3',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.22.4',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -2681,11 +2708,11 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   }
   res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
 });
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.22.3',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.22.4',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.22.3 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.22.4 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
