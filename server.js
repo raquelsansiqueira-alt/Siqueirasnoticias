@@ -10,7 +10,7 @@ const TZ = 'America/Sao_Paulo';
 const parser = new Parser({
   timeout: 20000,
   headers: {
-    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
+    'User-Agent': 'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
     'Accept': 'application/rss+xml, application/xml, text/xml, */*'
   },
   customFields: {
@@ -67,7 +67,16 @@ const STJ_EXTRA_SOURCES = [
   {name:'Jovem Pan', domains:['jovempan.com.br']},
   {name:'Band', domains:['band.com.br']},
   {name:'Exame', domains:['exame.com']},
-  {name:'InfoMoney', domains:['infomoney.com.br']}
+  {name:'InfoMoney', domains:['infomoney.com.br']},
+  {name:'Folha de Mato Grosso', domains:['folhadematogrosso.com.br']},
+  {name:'Midiamax', domains:['midiamax.com.br']},
+  {name:'Extra', domains:['extra.globo.com']},
+  {name:'Intercept Brasil', domains:['intercept.com.br']},
+  {name:'revista piauí', domains:['piaui.uol.com.br']},
+  {name:'Amado Mundo', domains:['amadomundo.com']},
+  {name:'Correio da Manhã', domains:['correiodamanha.com.br']},
+  {name:'Broadcast', domains:['broadcast.com.br']},
+  {name:'Direito Global', domains:['direitoglobal.com.br']}
 ];
 
 const STJ_SOURCES = [...SOURCES, ...STJ_EXTRA_SOURCES.filter(extra =>
@@ -142,7 +151,8 @@ const QUERIES = {
     '"Regina Helena Costa" OR "Rogerio Schietti Cruz" OR "Gurgel de Faria" OR "Reynaldo Soares da Fonseca"',
     '"Ribeiro Dantas" OR "Antonio Saldanha Palheiro" OR "Joel Ilan Paciornik" OR "Messod Azulay Neto"',
     '"Paulo Sérgio Domingues" OR "Teodoro Silva Santos" OR "Afrânio Vilela" OR "Daniela Teixeira"',
-    '"Maria Marluce Caldas Bezerra" OR "Carlos Pires Brandão"'
+    '"Maria Marluce Caldas Bezerra" OR "Carlos Pires Brandão"',
+    '"Instituto Brasileiro de Estudos e Desenvolvimento de Direito Empresarial"'
   ],
   judiciario: [
     'AJUFE OR "Associação dos Juízes Federais" OR "Justiça Federal"',
@@ -211,12 +221,14 @@ const STJ_SMART_SITE_DOMAINS = [
   'ofator.com.br','timesbrasil.com.br','primeirapagina.com.br','agenciainfra.com',
   'gazetadopovo.com.br','em.com.br','opovo.com.br','cartacapital.com.br',
   'terra.com.br','sbtnews.sbt.com.br','jovempan.com.br','band.com.br',
-  'exame.com','infomoney.com.br'
+  'exame.com','infomoney.com.br',
+  'folhadematogrosso.com.br','midiamax.com.br','extra.globo.com','intercept.com.br','piaui.uol.com.br',
+  'amadomundo.com','correiodamanha.com.br','broadcast.com.br','direitoglobal.com.br'
 ];
 
 const SMART_SAFETY_TERMS = {
   stf:'STF OR "Supremo Tribunal Federal" OR "Edson Fachin" OR "Cármen Lúcia" OR "Dias Toffoli" OR "Alexandre de Moraes" OR "Luiz Fux" OR "Nunes Marques" OR "André Mendonça" OR "Flávio Dino" OR "Cristiano Zanin" OR "Gilmar Mendes"',
-  stj:'STJ OR "Superior Tribunal de Justiça" OR "Luis Felipe Salomão" OR "Nancy Andrighi" OR "Herman Benjamin" OR "Mauro Campbell Marques"',
+  stj:'STJ OR "Superior Tribunal de Justiça" OR "Luis Felipe Salomão" OR "Nancy Andrighi" OR "Herman Benjamin" OR "Mauro Campbell Marques" OR "Instituto Brasileiro de Estudos e Desenvolvimento de Direito Empresarial"',
   judiciario:'STF OR STJ OR CNJ OR TSE OR AJUFE OR "Justiça Federal" OR Judiciário',
   saude:'saúde OR SUS OR Anvisa OR ANS OR câncer OR autismo OR semaglutida OR dengue OR vacina OR diabetes OR "saúde mental" OR gripe OR medicina',
   geral:'política OR Justiça OR economia OR Brasil OR internacional',
@@ -278,10 +290,51 @@ function stripArticleHtml(html=''){
   ).trim();
 }
 
-async function getArticleText(url=''){
+function extractEditorialHtml(html=''){
+  const raw=String(html||'');
+
+  // 1) Muitos jornais expõem o texto limpo no JSON-LD (schema.org Article/NewsArticle).
+  // Preferimos articleBody porque ele não inclui menu, rodapé, "mais lidas" ou chamadas laterais.
+  const bodies=[];
+  const bodyRegex=/["']articleBody["']\s*:\s*["']([\s\S]*?)(?<!\\)["']\s*(?:,|})/gi;
+  let m;
+  while((m=bodyRegex.exec(raw))){
+    let value=m[1]
+      .replace(/\\n/g,' ')
+      .replace(/\\r/g,' ')
+      .replace(/\\t/g,' ')
+      .replace(/\\"/g,'"')
+      .replace(/\\\//g,'/')
+      .replace(/\\u([0-9a-f]{4})/gi,(_,h)=>String.fromCharCode(parseInt(h,16)));
+    if(value.length>250) bodies.push(value);
+  }
+  if(bodies.length) return bodies.sort((a,b)=>b.length-a.length)[0];
+
+  // 2) Se não houver articleBody, prioriza a tag <article>.
+  const articles=[...raw.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/gi)]
+    .map(x=>x[1]).filter(x=>x && x.length>300);
+  if(articles.length) return articles.sort((a,b)=>b.length-a.length)[0];
+
+  // 3) Fallback para <main>. Antes de converter em texto, remove blocos que normalmente
+  // carregam conteúdo alheio à matéria e geravam falsos positivos no painel STJ.
+  const mains=[...raw.matchAll(/<main\b[^>]*>([\s\S]*?)<\/main>/gi)]
+    .map(x=>x[1]).filter(x=>x && x.length>300);
+  if(mains.length) return mains.sort((a,b)=>b.length-a.length)[0];
+
+  return '';
+}
+
+function cleanEditorialBlock(html=''){
+  return String(html||'')
+    .replace(/<(nav|aside|footer)\b[\s\S]*?<\/\1>/gi,' ')
+    .replace(/<[^>]*(?:class|id)=["'][^"']*(?:related|recomend|mais-lidas|mais-lidos|leia-tambem|leia_mais|sidebar|newsletter|footer|menu|share|social)[^"']*["'][^>]*>[\s\S]*?<\/[^>]+>/gi,' ');
+}
+
+async function getArticleText(url='', editorialOnly=false){
   if(!url || !/^https?:\/\//i.test(url)) return '';
 
-  const cached=articleTextCache.get(url);
+  const cacheKey=`${editorialOnly?'editorial':'page'}|${url}`;
+  const cached=articleTextCache.get(cacheKey);
   if(cached && Date.now()-cached.at<ARTICLE_TEXT_CACHE_MS) return cached.text;
 
   let text='';
@@ -290,7 +343,7 @@ async function getArticleText(url=''){
       redirect:'follow',
       signal:AbortSignal.timeout(5500),
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -299,33 +352,88 @@ async function getArticleText(url=''){
       const type=response.headers.get('content-type')||'';
       if(type.includes('text/html') || type.includes('application/xhtml')){
         const html=await response.text();
-        text=stripArticleHtml(html).slice(0,50000);
+        if(editorialOnly){
+          const editorial=extractEditorialHtml(html);
+          // Importante: no STJ NÃO usamos a página inteira como fallback.
+          // Se não conseguimos separar o texto editorial, título/resumo ainda podem validar a matéria,
+          // mas menu/rodapé/chamadas não podem fazê-la entrar no painel.
+          text=editorial ? stripArticleHtml(cleanEditorialBlock(editorial)).slice(0,50000) : '';
+        }else{
+          text=stripArticleHtml(html).slice(0,50000);
+        }
       }
     }
   }catch(err){
     // Falha de leitura do corpo não derruba a coleta.
   }
 
-  articleTextCache.set(url,{at:Date.now(),text});
+  articleTextCache.set(cacheKey,{at:Date.now(),text});
   return text;
 }
 
+function stjRealContentMatch(text=''){
+  const n=normalize(text);
+  if(!n) return false;
+  if(/\bstj\b|superior tribunal de justica/.test(n)) return true;
+  if(n.includes('instituto brasileiro de estudos e desenvolvimento de direito empresarial')) return true;
+
+  // Para nomes, prioriza variantes com pelo menos duas palavras ou sobrenomes bem específicos.
+  // Evita falsos positivos de termos curtos/genéricos encontrados fora do contexto.
+  return STJ_MINISTERS.some(m=>m.terms.some(term=>{
+    const t=normalize(term).trim();
+    if(!t) return false;
+    const words=t.split(/\s+/).filter(Boolean);
+    if(words.length>=2) return n.includes(t);
+    return t.length>=7 && n.includes(t);
+  }));
+}
+
 async function confirmModuleCandidates(items,module,maxBodyChecks=36){
+  // STJ tem uma validação final mais rigorosa: a busca serve apenas para DESCOBRIR a URL.
+  // Para aparecer no painel, a matéria precisa citar STJ/Tribunal/ministro no conteúdo real.
+  if(module==='stj'){
+    const confirmed=[];
+    const candidates=(items||[])
+      .sort((a,b)=>new Date(b.publishedAt)-new Date(a.publishedAt))
+      .slice(0,Math.max(maxBodyChecks,120));
+
+    for(let i=0;i<candidates.length;i+=4){
+      const batch=candidates.slice(i,i+4);
+      const checked=await Promise.all(batch.map(async item=>{
+        const feedText=`${item.title} ${item.summary||''}`;
+
+        // Título/subtítulo já comprovam que a matéria é pertinente.
+        if(stjRealContentMatch(feedText)){
+          return {...item,tags:classify(feedText),matchOrigin:'feed'};
+        }
+
+        // Caso contrário, abre a matéria e verifica SOMENTE o bloco editorial.
+        const editorialBody=await getArticleText(item.url,true);
+        if(!editorialBody || !stjRealContentMatch(editorialBody)) return null;
+
+        const fullText=`${feedText} ${editorialBody}`;
+        return {...item,tags:classify(fullText),matchOrigin:'body'};
+      }));
+      confirmed.push(...checked.filter(Boolean));
+    }
+
+    const seen=new Set();
+    return confirmed.filter(item=>{
+      const key=normalize(`${item.source}|${item.url}`);
+      if(!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  // Demais painéis permanecem com a lógica anterior.
   const confirmed=[];
   const pending=[];
-
   for(const item of items||[]){
     const feedText=`${item.title} ${item.summary||''}`;
-
     if(moduleMatch(module,feedText)){
-      confirmed.push({
-        ...item,
-        tags:classify(feedText),
-        matchOrigin:'feed'
-      });
-    }else{
-      pending.push(item);
-    }
+      confirmed.push({...item,tags:classify(feedText),matchOrigin:'feed'});
+    }else pending.push(item);
   }
 
   const bodyCandidates=pending
@@ -337,15 +445,9 @@ async function confirmModuleCandidates(items,module,maxBodyChecks=36){
     const checked=await Promise.all(batch.map(async item=>{
       const body=await getArticleText(item.url);
       if(!body) return null;
-
       const fullText=`${item.title} ${item.summary||''} ${body}`;
       if(!moduleMatch(module,fullText)) return null;
-
-      return {
-        ...item,
-        tags:classify(fullText),
-        matchOrigin:'body'
-      };
+      return {...item,tags:classify(fullText),matchOrigin:'body'};
     }));
     confirmed.push(...checked.filter(Boolean));
   }
@@ -404,7 +506,7 @@ async function loadDirectFeed(feed) {
   try {
     const response = await fetch(feed.url, {
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
         'Accept':'application/rss+xml, application/xml, text/xml, */*'
       }
     });
@@ -595,7 +697,7 @@ async function getOriginalPublishedTime(url, fallback) {
       redirect: 'follow',
       signal: controller.signal,
       headers: {
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -789,7 +891,7 @@ function feedUrl(query) {
 async function loadFeed(query) {
   const response = await fetch(feedUrl(query), {
     headers: {
-      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
+      'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
       'Accept':'application/rss+xml, application/xml, text/xml, */*'
     }
   });
@@ -1044,7 +1146,7 @@ async function getCoverInfo(newspaper, force=false) {
     const response = await fetch(newspaper.page, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
         'Accept':'text/html,application/xhtml+xml'
       }
     });
@@ -1099,7 +1201,7 @@ app.get('/api/cover-image/:id', async (req,res)=>{
     const response = await fetch(info.imageUrl, {
       redirect:'follow',
       headers:{
-        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.1)',
+        'User-Agent':'Mozilla/5.0 (compatible; CentralNoticias/3.22.3)',
         'Referer':newspaper.page,
         'Accept':'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       }
@@ -1167,7 +1269,7 @@ function stjExcerptFromText(text='', fallback=''){
 }
 
 async function buildStjCopyText(item){
-  const body=await getArticleText(item.url);
+  const body=await getArticleText(item.url,true);
   const excerpt=stjExcerptFromText(body,item.summary || item.title);
   return `*${item.source}* | ${stjHighlightWhatsApp(excerpt)}\n${item.url}`;
 }
@@ -1214,7 +1316,7 @@ app.post('/api/refresh',async(req,res)=>{
 });
 
 app.get('/api/status',(_,res)=>{
-  res.json({version:'3.22.1',now:new Date().toISOString(),modules:diagnostics});
+  res.json({version:'3.22.3',now:new Date().toISOString(),modules:diagnostics});
 });
 
 
@@ -2579,11 +2681,11 @@ app.get('/api/newsletter/:client/:period',async(req,res)=>{
   }
   res.json({client:client.id,clientName:client.name,period,text:lines.join('\n'),generatedAt:now.toISOString(),sections:sections.length,count:sections.reduce((n,s)=>n+s.items.length,0)});
 });
-app.get('/health',(_,res)=>res.json({ok:true,version:'3.22.1',now:new Date().toISOString()}));
+app.get('/health',(_,res)=>res.json({ok:true,version:'3.22.3',now:new Date().toISOString()}));
 app.get('*',(_,res)=>res.sendFile(path.join(__dirname,'public','index.html')));
 
 app.listen(PORT,()=>{
-  console.log(`Central de Notícias v3.22.1 ativa na porta ${PORT}`);
+  console.log(`Central de Notícias v3.22.3 ativa na porta ${PORT}`);
   ['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true));
   setInterval(()=>['stf','stj','judiciario','saude'].forEach(m=>fetchModule(m,true)),CACHE_TTL_MS);
 });
